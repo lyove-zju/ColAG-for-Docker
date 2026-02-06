@@ -154,9 +154,12 @@ public:
     Eigen::VectorXd Z = H * nowX;    
     Eigen::VectorXd errorZ = (measure - Z);
 
-    // bound error in (-pi, pi]
-    while (errorZ > M_PI) errorZ -= M_PI*2;
-    while (errorZ <= -M_PI) errorZ += M_PI*2;
+    // bound angular errors in (-pi, pi]
+    for (int i = 3; i <= 5; ++i)
+    {
+      while (errorZ(i) > M_PI) errorZ(i) -= 2 * M_PI;
+      while (errorZ(i) <= -M_PI) errorZ(i) += 2 * M_PI;
+    }
     
     // 解决飘的很慢的情况 the measurement is slowly change
     Eigen::Vector3d change1 = (nowX - preX).segment<3>(0);
