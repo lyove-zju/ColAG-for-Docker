@@ -146,6 +146,84 @@ pose:
     y: 0.0
     z: 0.0
     w: 0.0"
+
+### Docker (Ubuntu 24.04 Host)
+
+This project targets Ubuntu 20.04 + ROS Noetic. If your host is Ubuntu 24.04, you can run it in Docker.
+
+Build the image:
+
+```sh
+docker build -f docker/Dockerfile -t colag:noetic .
+```
+
+Run the container (GUI enabled for RViz):
+
+```sh
+xhost +local:root
+docker run -it --rm \
+  --net=host \
+  -e DISPLAY=$DISPLAY \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v "$PWD":/work \
+  --name colag \
+  colag:noetic
+```
+
+If you need NVIDIA GPU acceleration, add `--gpus all`:
+
+```sh
+docker run -it --rm \
+  --net=host \
+  --gpus all \
+  -e DISPLAY=$DISPLAY \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v "$PWD":/work \
+  --name colag \
+  colag:noetic
+```
+
+Inside the container, run the simulation:
+
+```sh
+cd /work
+./run.sh 3
+```
+
+If the FSM stays at `WAIT_TARGET`, open another terminal into the running container:
+
+```sh
+docker exec -it colag bash
+```
+Then send the trigger:
+
+```sh
+rostopic pub /traj_start_trigger geometry_msgs/PoseStamped "header:
+  seq: 0
+  stamp:
+    secs: 0
+    nsecs: 0
+  frame_id: ''
+pose:
+  position:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0"
+```
+
+If `rostopic` is not found in the new terminal, source ROS:
+
+```sh
+source /opt/ros/noetic/setup.bash
+source /work/MARSIM_ws/devel/setup.bash
+source /work/Ground_ws/devel/setup.bash
+source /work/Air_ws/devel/setup.bash
+```
 ```
 
 ## 3. Acknowledgments
