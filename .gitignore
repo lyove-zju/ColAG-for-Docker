@@ -1,0 +1,14 @@
+**/devel
+**/build
+**/cmake-build-debug
+**/bag
+**/*.bag
+**/__pycache__
+**/*.pyc
+*~
+**/.vscode
+.codex
+Air_ws/src/CMakeLists.txt
+Ground_ws/src/CMakeLists.txt
+MARSIM_ws/src/CMakeLists.txt
+MARSIM_ws/src/MARSIM/cascadePID/data
