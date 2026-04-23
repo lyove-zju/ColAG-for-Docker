@@ -135,6 +135,28 @@ Optionally, pass a second argument to choose another MARSIM map while keeping th
 ./run.sh 3 MARSIM_ws/src/MARSIM/map_generator/resource/randomcube.pcd
 ```
 
+You can also generate more `40obs/60obs/80obs`-style ASCII maps offline without changing the launch logic:
+
+```sh
+python3 MARSIM_ws/src/MARSIM/map_generator/scripts/generate_legacy_obs_map.py custom_72 \
+  --obs-num 72 \
+  --seed 7 \
+  --min-distance 1.6
+
+./run.sh 3 custom_72
+```
+
+Optional map size:
+
+```sh
+python3 MARSIM_ws/src/MARSIM/map_generator/scripts/generate_legacy_obs_map.py custom_wide \
+  --obs-num 96 \
+  --seed 11 \
+  --min-distance 1.4 \
+  --size-x 45.0 \
+  --size-y 35.0
+```
+
 Then send a trigger to start blind navigation
 
 ```sh
