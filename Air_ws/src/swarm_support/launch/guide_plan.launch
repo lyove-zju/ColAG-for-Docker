@@ -1,17 +1,43 @@
 <launch>
   <arg name="drone_id" default = "0"/>
   <arg name="odometry_topic" default = "lidar_slam/odom"/>
-  <node pkg="guide_manager" name="guide_manager" type="guide_plan.py" output="screen" ns="/drone_$(arg drone_id)" respawn="true">
-    <param name="drone_id" value="$(arg drone_id)" />
-    <param name="ugv_num" value="7" />
-    <param name="uav_num" value="1" />
-    <param name="replan_period" value="10.0" />
-    <param name="v_max" value="3.0" />
-    <param name="a_max" value="1.0" />
-    <param name="time_reslolution" value="100.0" />
+  <arg name="dispatch_method" default="vrptw"/>
+  <arg name="rl_model_path" default=""/>
+  <arg name="rl_device" default="cpu"/>
 
-    <remap from="/self_odom" to="/drone_$(arg drone_id)/$(arg odometry_topic)"/>
-    <remap from="/guide_waypoint" to="/drone_$(arg drone_id)/guide_waypoint"/>
-    <remap from="/blind_info" to="/drone_$(arg drone_id)/broadcast/blind_info"/>
-  </node>
+  <group unless="$(eval arg('dispatch_method') == 'rl')">
+    <node pkg="guide_manager" name="guide_manager" type="guide_plan.py" output="screen" ns="/drone_$(arg drone_id)" respawn="true">
+      <param name="drone_id" value="$(arg drone_id)" />
+      <param name="ugv_num" value="7" />
+      <param name="uav_num" value="1" />
+      <param name="replan_period" value="10.0" />
+      <param name="v_max" value="3.0" />
+      <param name="a_max" value="1.0" />
+      <param name="time_reslolution" value="100.0" />
+      <param name="dispatch_method" value="$(arg dispatch_method)" />
+
+      <remap from="/self_odom" to="/drone_$(arg drone_id)/$(arg odometry_topic)"/>
+      <remap from="/guide_waypoint" to="/drone_$(arg drone_id)/guide_waypoint"/>
+      <remap from="/blind_info" to="/drone_$(arg drone_id)/broadcast/blind_info"/>
+    </node>
+  </group>
+
+  <group if="$(eval arg('dispatch_method') == 'rl')">
+    <node pkg="guide_manager" name="guide_manager" type="guide_plan_rl.py" output="screen" ns="/drone_$(arg drone_id)" respawn="true">
+      <param name="drone_id" value="$(arg drone_id)" />
+      <param name="ugv_num" value="7" />
+      <param name="uav_num" value="1" />
+      <param name="replan_period" value="10.0" />
+      <param name="v_max" value="3.0" />
+      <param name="a_max" value="1.0" />
+      <param name="time_reslolution" value="100.0" />
+      <param name="dispatch_method" value="$(arg dispatch_method)" />
+      <param name="rl_model_path" value="$(arg rl_model_path)" />
+      <param name="rl_device" value="$(arg rl_device)" />
+
+      <remap from="/self_odom" to="/drone_$(arg drone_id)/$(arg odometry_topic)"/>
+      <remap from="/guide_waypoint" to="/drone_$(arg drone_id)/guide_waypoint"/>
+      <remap from="/blind_info" to="/drone_$(arg drone_id)/broadcast/blind_info"/>
+    </node>
+  </group>
 </launch> 

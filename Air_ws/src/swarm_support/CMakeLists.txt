@@ -8,9 +8,13 @@ project(guide_manager)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  custom_msgs
+  geometry_msgs
+  nav_msgs
   roscpp
   rospy
   std_msgs
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -105,7 +109,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES local_planner
-#  CATKIN_DEPENDS roscpp rospy std_msgs
+#  CATKIN_DEPENDS custom_msgs geometry_msgs nav_msgs roscpp rospy std_msgs visualization_msgs
 #  DEPENDS system_lib
 )
 
@@ -159,10 +163,7 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+# Keep using executable scripts from the package source tree, matching the original project flow.
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html

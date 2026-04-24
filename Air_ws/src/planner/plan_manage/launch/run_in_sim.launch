@@ -7,6 +7,9 @@
   <arg name="self_id"/>
   <arg name="uav_num"/>
   <arg name="ugv_num"/>
+  <arg name="dispatch_method" default="vrptw"/>
+  <arg name="rl_model_path" default=""/>
+  <arg name="rl_device" default="cpu"/>
 
   <!-- number of moving objects -->
   <arg name="obj_num" value="4" />
@@ -146,21 +149,45 @@
 
   </node>
 
-  <!-- support ugv, caculate vrptw and give waypoints in order -->
-  <node pkg="guide_manager" name="guide_manager" type="guide_plan.py" output="screen">
+  <!-- support ugv, keep VRPTW as default and allow RL replacement by parameter -->
+  <group unless="$(eval arg('dispatch_method') == 'rl')">
+    <node pkg="guide_manager" name="guide_manager" type="guide_plan.py" output="screen">
 
-    <remap from="self_odom" to="$(arg odom_topic)"/>
-    <remap from="guide_waypoint" to="$(arg waypoint_topic)"/>
-    <remap from="blind_info" to="$(arg ugv_blind_topic)"/>
+      <remap from="self_odom" to="$(arg odom_topic)"/>
+      <remap from="guide_waypoint" to="$(arg waypoint_topic)"/>
+      <remap from="blind_info" to="$(arg ugv_blind_topic)"/>
 
-    <param name="drone_id" value="$(arg self_id)" />
-    <param name="ugv_num" value="$(arg ugv_num)" />
-    <param name="uav_num" value="$(arg uav_num)" />
-    <param name="replan_period" value="10.0" />
-    <param name="v_max" value="3.0" />
-    <param name="a_max" value="1.0" />
-    <param name="time_reslolution" value="100.0" />
+      <param name="drone_id" value="$(arg self_id)" />
+      <param name="ugv_num" value="$(arg ugv_num)" />
+      <param name="uav_num" value="$(arg uav_num)" />
+      <param name="replan_period" value="10.0" />
+      <param name="v_max" value="3.0" />
+      <param name="a_max" value="1.0" />
+      <param name="time_reslolution" value="100.0" />
+      <param name="dispatch_method" value="$(arg dispatch_method)" />
 
-  </node>
+    </node>
+  </group>
+
+  <group if="$(eval arg('dispatch_method') == 'rl')">
+    <node pkg="guide_manager" name="guide_manager" type="guide_plan_rl.py" output="screen">
+
+      <remap from="self_odom" to="$(arg odom_topic)"/>
+      <remap from="guide_waypoint" to="$(arg waypoint_topic)"/>
+      <remap from="blind_info" to="$(arg ugv_blind_topic)"/>
+
+      <param name="drone_id" value="$(arg self_id)" />
+      <param name="ugv_num" value="$(arg ugv_num)" />
+      <param name="uav_num" value="$(arg uav_num)" />
+      <param name="replan_period" value="10.0" />
+      <param name="v_max" value="3.0" />
+      <param name="a_max" value="1.0" />
+      <param name="time_reslolution" value="100.0" />
+      <param name="dispatch_method" value="$(arg dispatch_method)" />
+      <param name="rl_model_path" value="$(arg rl_model_path)" />
+      <param name="rl_device" value="$(arg rl_device)" />
+
+    </node>
+  </group>
 
 </launch>

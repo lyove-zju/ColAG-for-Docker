@@ -135,6 +135,68 @@ Optionally, pass a second argument to choose another MARSIM map while keeping th
 ./run.sh 3 MARSIM_ws/src/MARSIM/map_generator/resource/randomcube.pcd
 ```
 
+The UAV dispatch baseline remains VRPTW by default. You can keep the original behavior or explicitly switch to the new RL dispatch module:
+
+```sh
+./run.sh 3 80obs vrptw
+./run.sh 3 80obs rl /absolute/path/to/dispatch_policy.pt cpu
+```
+
+You can also launch the Air side directly with ROS parameters:
+
+```sh
+cd Air_ws
+source devel/setup.sh
+roslaunch ego_planner swarm_sim.launch \
+  ugv_num:=3 \
+  dispatch_method:=rl \
+  rl_model_path:=/absolute/path/to/dispatch_policy.pt \
+  rl_device:=cpu
+```
+
+The RL module only replaces the UAV dispatch order generator. UGV planning, collision detection, bridge logic, `blind_info`, and UAV/UGV map sharing remain unchanged. See [RL_DISPATCH_RULES.md](RL_DISPATCH_RULES.md) for the hard constraints.
+
+Training and evaluation utilities are provided under `Air_ws/src/swarm_support/scripts/`:
+
+```sh
+python3 Air_ws/src/swarm_support/scripts/dispatch_expert.py \
+  --output tmp_dispatch_expert.jsonl \
+  --num-samples 2000 \
+  --ugv-num 3
+
+python3 Air_ws/src/swarm_support/scripts/train_dispatch_rl.py bc \
+  --dataset tmp_dispatch_expert.jsonl \
+  --output dispatch_bc.pt \
+  --ugv-num 3
+
+python3 Air_ws/src/swarm_support/scripts/train_dispatch_rl.py ppo \
+  --init-checkpoint dispatch_bc.pt \
+  --output dispatch_ppo.pt \
+  --ugv-num 3
+
+python3 Air_ws/src/swarm_support/scripts/eval_dispatch_rl.py \
+  --checkpoint dispatch_ppo.pt \
+  --ugv-num 3
+```
+
+These scripts require PyTorch, and the expert exporter additionally requires OR-Tools.
+
+If you want the whole chain in one command, use the pipeline wrapper:
+
+```sh
+bash Air_ws/src/swarm_support/scripts/run_dispatch_pipeline.sh --ugv-num 3
+```
+
+It will automatically generate:
+
+- expert dataset JSONL
+- BC checkpoint `.pt`
+- PPO checkpoint `.pt`
+- evaluation logs
+- `eval_metrics.json`
+
+By default the outputs are written to `tmp_rl_dispatch_runs/<experiment_name>/`.
+
 You can also generate more `40obs/60obs/80obs`-style ASCII maps offline without changing the launch logic:
 
 ```sh
@@ -176,6 +238,7 @@ pose:
     y: 0.0
     z: 0.0
     w: 0.0"
+```
 
 ### Docker (Ubuntu 24.04 Host)
 
