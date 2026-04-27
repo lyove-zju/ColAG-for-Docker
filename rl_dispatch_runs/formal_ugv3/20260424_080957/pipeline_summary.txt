@@ -1,0 +1,8 @@
+experiment_dir=/work/rl_dispatch_runs/formal_ugv3/20260424_080957
+expert_jsonl=/work/rl_dispatch_runs/formal_ugv3/20260424_080957/expert_ugv3.jsonl
+bc_checkpoint=/work/rl_dispatch_runs/formal_ugv3/20260424_080957/dispatch_bc_ugv3.pt
+ppo_checkpoint=/work/rl_dispatch_runs/formal_ugv3/20260424_080957/dispatch_ppo_ugv3.pt
+eval_metrics_json=/work/rl_dispatch_runs/formal_ugv3/20260424_080957/eval_metrics.json
+
+run_rl_sim_command=./run.sh 3 80obs rl /work/rl_dispatch_runs/formal_ugv3/20260424_080957/dispatch_ppo_ugv3.pt cuda
+run_vrptw_sim_command=./run.sh 3 80obs vrptw

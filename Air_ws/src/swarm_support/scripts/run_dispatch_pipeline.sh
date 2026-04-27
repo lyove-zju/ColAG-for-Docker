@@ -18,7 +18,7 @@ PPO_EPOCHS=3
 PPO_BATCH_SIZE=32
 PPO_LR=3e-4
 EVAL_EPISODES=200
-OUTPUT_ROOT="$REPO_ROOT/tmp_rl_dispatch_runs"
+OUTPUT_ROOT="$REPO_ROOT/rl_dispatch_runs"
 EXPERIMENT_NAME=""
 
 usage() {
@@ -126,7 +126,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$EXPERIMENT_NAME" ]]; then
-  EXPERIMENT_NAME="dispatch_ugv${UGV_NUM}_seed${SEED}_$(date +%Y%m%d_%H%M%S)"
+  EXPERIMENT_NAME="$(date +%Y%m%d_%H%M%S)"
 fi
 
 python3 - <<'PY'

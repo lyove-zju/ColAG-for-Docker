@@ -1,0 +1,21 @@
+[BC] epoch=0 avg_nll=0.308729
+[BC] epoch=1 avg_nll=0.246239
+[BC] epoch=2 avg_nll=0.211000
+[BC] epoch=3 avg_nll=0.172928
+[BC] epoch=4 avg_nll=0.172041
+[BC] epoch=5 avg_nll=0.157991
+[BC] epoch=6 avg_nll=0.148717
+[BC] epoch=7 avg_nll=0.141280
+[BC] epoch=8 avg_nll=0.146930
+[BC] epoch=9 avg_nll=0.134588
+[BC] epoch=10 avg_nll=0.129805
+[BC] epoch=11 avg_nll=0.131835
+[BC] epoch=12 avg_nll=0.125592
+[BC] epoch=13 avg_nll=0.121052
+[BC] epoch=14 avg_nll=0.119022
+[BC] epoch=15 avg_nll=0.122815
+[BC] epoch=16 avg_nll=0.113495
+[BC] epoch=17 avg_nll=0.110065
+[BC] epoch=18 avg_nll=0.112054
+[BC] epoch=19 avg_nll=0.116407
+[BC] saved checkpoint to /work/rl_dispatch_runs/formal_ugv3/20260424_062209/dispatch_bc_ugv3.pt

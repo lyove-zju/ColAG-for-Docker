@@ -36,7 +36,8 @@ RUN unzip -q /tmp/bak/osqp-eigen.zip -d /tmp \
  && rm -rf /tmp/osqp-eigen
 
 RUN python3 -m pip install --no-cache-dir --upgrade pip \
- && python3 -m pip install --no-cache-dir ortools
+ && python3 -m pip install --no-cache-dir ortools \
+ && python3 -m pip install --no-cache-dir torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
 
 WORKDIR /work
 COPY . /work

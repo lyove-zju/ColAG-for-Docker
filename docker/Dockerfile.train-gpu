@@ -1,0 +1,33 @@
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+
+SHELL ["/bin/bash", "-c"]
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_NO_CACHE_DIR=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    build-essential \
+    ca-certificates \
+    git \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv "$VIRTUAL_ENV" \
+ && python -m pip install --upgrade pip setuptools wheel \
+ && python -m pip install \
+    numpy \
+    ortools \
+ && python -m pip install \
+    torch==2.9.0 \
+    --index-url https://download.pytorch.org/whl/cu128
+
+WORKDIR /work
+
+CMD ["bash"]

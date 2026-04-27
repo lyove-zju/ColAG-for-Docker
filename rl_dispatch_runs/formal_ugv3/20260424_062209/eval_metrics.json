@@ -1,0 +1,12 @@
+{
+  "checkpoint": "/work/rl_dispatch_runs/formal_ugv3/20260424_062209/dispatch_ppo_ugv3.pt",
+  "episodes": 500,
+  "ugv_num": 3,
+  "seed": 7,
+  "device": "cpu",
+  "rl_success_total": 955,
+  "expert_success_total": 968,
+  "rl_success_per_episode": 1.91,
+  "expert_success_per_episode": 1.936,
+  "rl_vs_expert_ratio": 0.9865702479338843
+}

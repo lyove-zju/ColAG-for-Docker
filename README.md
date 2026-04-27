@@ -187,6 +187,8 @@ If you want the whole chain in one command, use the pipeline wrapper:
 bash Air_ws/src/swarm_support/scripts/run_dispatch_pipeline.sh --ugv-num 3
 ```
 
+If you set `--output-root /work/rl_dispatch_runs/formal_ugv3` and do not pass `--experiment-name`, the script will create a timestamped run directory such as `/work/rl_dispatch_runs/formal_ugv3/20260424_153000/`.
+
 It will automatically generate:
 
 - expert dataset JSONL
@@ -196,6 +198,109 @@ It will automatically generate:
 - `eval_metrics.json`
 
 By default the outputs are written to `tmp_rl_dispatch_runs/<experiment_name>/`.
+
+### GPU Training Container
+
+If you want to keep the ROS Noetic simulation container unchanged and run RL training in a separate GPU-enabled container, build the dedicated trainer image:
+
+```sh
+docker build -f docker/Dockerfile.train-gpu -t colag-train-gpu .
+```
+
+Then launch training with a bind-mounted workspace so outputs are still written back to `/work`:
+
+```sh
+docker run --rm -it \
+  --gpus all \
+  -v "$PWD":/work \
+  -w /work \
+  --name colag_train_gpu \
+  colag-train-gpu \
+  bash -lc 'bash Air_ws/src/swarm_support/scripts/run_dispatch_pipeline.sh --ugv-num 3 --seed 7 --num-samples 5000 --device cuda --map-size-x 35.0 --map-size-y 35.0 --bc-epochs 20 --bc-batch-size 128 --bc-lr 1e-3 --ppo-updates 50 --ppo-epochs 4 --ppo-batch-size 64 --ppo-lr 3e-4 --eval-episodes 500 --output-root /work/rl_dispatch_runs/formal_ugv3'
+```
+
+If you do not pass `--experiment-name`, the outputs will be written to `/work/rl_dispatch_runs/formal_ugv3/<timestamp>/`.
+
+### Online Dispatch Metrics
+
+To compare the online VRPTW baseline and the RL replacement in the real ROS/MARSIM loop, record the UAV odometry and dispatch requests during each run:
+
+```sh
+rosbag record -O /work/dispatch_vrptw_80obs.bag \
+  /drone_0/broadcast/blind_info \
+  /drone_0/lidar_slam/odom
+```
+
+Run the VRPTW baseline:
+
+```sh
+./run.sh 3 80obs vrptw
+```
+
+Then record the RL run in a second bag:
+
+```sh
+rosbag record -O /work/dispatch_rl_80obs.bag \
+  /drone_0/broadcast/blind_info \
+  /drone_0/lidar_slam/odom
+```
+
+```sh
+./run.sh 3 80obs rl /work/rl_dispatch_runs/formal_ugv3/<timestamp>/dispatch_ppo_ugv3.pt cpu
+```
+
+After both bags are saved, analyze one run:
+
+```sh
+python3 Air_ws/src/swarm_support/scripts/analyze_online_dispatch.py analyze \
+  --bag /work/dispatch_vrptw_80obs.bag \
+  --label vrptw \
+  --output-json /work/dispatch_vrptw_80obs_metrics.json
+```
+
+Or compare two runs directly:
+
+```sh
+python3 Air_ws/src/swarm_support/scripts/analyze_online_dispatch.py compare \
+  --baseline-bag /work/dispatch_vrptw_80obs.bag \
+  --candidate-bag /work/dispatch_rl_80obs.bag \
+  --baseline-label vrptw \
+  --candidate-label rl \
+  --output-json /work/dispatch_compare_80obs.json
+```
+
+The analyzer reports:
+
+- `deadline_hit_rate` / `deadline_hit_count`
+- `missed_count`
+- `avg_tardiness_seconds`
+- `avg_response_time_seconds`
+- `uav_flight_distance_m`
+- `uav_flight_time_seconds`
+
+It treats each positive `blind_info` message as one online support request and checks whether the UAV reaches the requested support point within the configured XY arrival radius before the request deadline.
+
+For repeated experiments, use the wrapper below to run three VRPTW/RL pairs automatically on one map:
+
+```sh
+bash Air_ws/src/swarm_support/scripts/run_online_eval.sh \
+  --map 96obs \
+  --ugv-num 3 \
+  --runs 3 \
+  --rl-model /work/rl_dispatch_runs/formal_ugv3/<timestamp>/dispatch_ppo_ugv3.pt \
+  --rl-device cpu \
+  --output-root /work/online_eval \
+  --run-duration 150
+```
+
+This creates:
+
+- `/work/online_eval/96obs/vrptw_run1.bag`
+- `/work/online_eval/96obs/rl_run1.bag`
+- `/work/online_eval/96obs/compare_run1.json`
+- the same files for `run2` and `run3`
+
+If you are repeating an experiment with the same names, add `--overwrite`.
 
 You can also generate more `40obs/60obs/80obs`-style ASCII maps offline without changing the launch logic:
 
