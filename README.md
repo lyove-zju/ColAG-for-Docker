@@ -324,6 +324,28 @@ python3 MARSIM_ws/src/MARSIM/map_generator/scripts/generate_legacy_obs_map.py cu
   --size-y 35.0
 ```
 
+Structured V/U/dead-end maps can also be generated offline. These maps use the
+same ASCII PCD, ground plane, grid resolution, box obstacle, and launch flow as
+the legacy maps; only the obstacle arrangement changes:
+
+```sh
+python3 MARSIM_ws/src/MARSIM/map_generator/scripts/generate_structured_obs_map.py
+
+./run.sh 3 v_shape vrptw
+./run.sh 3 u_shape vrptw
+./run.sh 3 deadend vrptw
+```
+
+Use `--shape-clearance` to move random background obstacles farther from the
+V/U/dead-end structures while keeping the structures themselves unchanged.
+
+For RL dispatch, keep the same map-name position and pass the dispatch method
+and model arguments as usual:
+
+```sh
+./run.sh 3 v_shape rl /absolute/path/to/dispatch_policy.pt cpu
+```
+
 Then send a trigger to start blind navigation
 
 ```sh
