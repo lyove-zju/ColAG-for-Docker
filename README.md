@@ -187,6 +187,41 @@ If you want the whole chain in one command, use the pipeline wrapper:
 bash Air_ws/src/swarm_support/scripts/run_dispatch_pipeline.sh --ugv-num 3
 ```
 
+The default PPO stage is the original one-step lightweight dispatch setup. To train with the online-like event-driven replanning approximation, explicitly pass `--ppo-mode ppo_event`:
+
+```sh
+cd /work
+bash Air_ws/src/swarm_support/scripts/run_dispatch_pipeline.sh \
+  --ugv-num 3 \
+  --seed 7 \
+  --num-samples 50000 \
+  --device cuda \
+  --map-size-x 35.0 \
+  --map-size-y 35.0 \
+  --bc-epochs 30 \
+  --bc-batch-size 256 \
+  --bc-lr 1e-3 \
+  --ppo-mode ppo_event \
+  --ppo-updates 500 \
+  --ppo-epochs 4 \
+  --ppo-batch-size 32 \
+  --ppo-lr 3e-4 \
+  --ppo-horizon-sec 150 \
+  --ppo-replan-period 10 \
+  --ppo-arrival-radius 0.8 \
+  --ppo-gamma 0.98 \
+  --ppo-success-reward 4.0 \
+  --ppo-miss-penalty 6.0 \
+  --ppo-tardiness-weight 0.25 \
+  --ppo-response-time-weight 0.05 \
+  --ppo-flight-time-weight 0.01 \
+  --ppo-flight-distance-weight 0.005 \
+  --eval-episodes 1000 \
+  --output-root /work/rl_dispatch_runs/formal_ugv3
+```
+
+When `--ppo-mode ppo_event` is used, the wrapper also switches the final offline evaluation to `--eval-mode event`, so `eval_metrics.json` reports event-driven success, miss, response-time, flight-time, and churn metrics against the VRPTW expert on the same random event seeds.
+
 If you set `--output-root /work/rl_dispatch_runs/formal_ugv3` and do not pass `--experiment-name`, the script will create a timestamped run directory such as `/work/rl_dispatch_runs/formal_ugv3/20260424_153000/`.
 
 It will automatically generate:
@@ -196,6 +231,22 @@ It will automatically generate:
 - PPO checkpoint `.pt`
 - evaluation logs
 - `eval_metrics.json`
+- `bc_metrics.jsonl` and `ppo_metrics.jsonl`
+- `training_curves.svg`
+
+`training_curves.svg` is generated without extra plotting dependencies and includes BC loss, PPO reward, PPO optimization terms, dispatch hit/miss counts, and the final evaluation summary. You can also regenerate it manually:
+
+```sh
+python3 Air_ws/src/swarm_support/scripts/plot_dispatch_training.py \
+  --bc-jsonl /work/rl_dispatch_runs/formal_ugv3/<timestamp>/bc_metrics.jsonl \
+  --ppo-jsonl /work/rl_dispatch_runs/formal_ugv3/<timestamp>/ppo_metrics.jsonl \
+  --bc-log /work/rl_dispatch_runs/formal_ugv3/<timestamp>/bc.log \
+  --ppo-log /work/rl_dispatch_runs/formal_ugv3/<timestamp>/ppo.log \
+  --eval-json /work/rl_dispatch_runs/formal_ugv3/<timestamp>/eval_metrics.json \
+  --output /work/rl_dispatch_runs/formal_ugv3/<timestamp>/training_curves.svg
+```
+
+For older runs without `*_metrics.jsonl`, the script can still draw the metrics that were printed in `bc.log` and `ppo.log`.
 
 By default the outputs are written to `tmp_rl_dispatch_runs/<experiment_name>/`.
 

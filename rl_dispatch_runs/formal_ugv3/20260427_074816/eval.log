@@ -1,0 +1,4 @@
+eval_mode=event
+rl_success_per_episode=23.1030
+expert_success_per_episode=19.6590
+rl_vs_expert_ratio=1.1752

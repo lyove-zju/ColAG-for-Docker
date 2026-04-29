@@ -1,3 +1,3 @@
-[0m[INFO] [1777268594.908515619]: Subscribing to /drone_0/broadcast/blind_info[0m
-[0m[INFO] [1777268594.910136192]: Subscribing to /drone_0/lidar_slam/odom[0m
-[0m[INFO] [1777268594.911397564]: Recording to '/work/online_eval/96obs/vrptw_run1.bag'.[0m
+[0m[INFO] [1777446063.929951859]: Subscribing to /drone_0/broadcast/blind_info[0m
+[0m[INFO] [1777446063.931318998]: Subscribing to /drone_0/lidar_slam/odom[0m
+[0m[INFO] [1777446063.932387930]: Recording to '/work/online_eval/96obs/vrptw_run1.bag'.[0m

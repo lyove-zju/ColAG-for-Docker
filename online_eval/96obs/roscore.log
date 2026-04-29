@@ -1,9 +1,9 @@
-... logging to /root/.ros/log/fb20e99c-41fb-11f1-89e9-fc9d052a1524/roslaunch-liuyang-MS-7E13-57689.log
+... logging to /root/.ros/log/2ac36c64-42c5-11f1-be66-fc9d052a1524/roslaunch-liuyang-MS-7E13-1512169.log
 Checking log directory for disk usage. This may take a while.
 Press Ctrl-C to interrupt
 Done checking log file disk usage. Usage is <1GB.
 ]2;roscore
-[1mstarted roslaunch server http://liuyang-MS-7E13:39011/[0m
+[1mstarted roslaunch server http://liuyang-MS-7E13:33271/[0m
 ros_comm version 1.17.4
 
 
@@ -17,11 +17,11 @@ PARAMETERS
 NODES
 
 auto-starting new master
-[1mprocess[master]: started with pid [57771][0m
+[1mprocess[master]: started with pid [1512251][0m
 [1mROS_MASTER_URI=http://liuyang-MS-7E13:11311/[0m
 ]2;roscore http://liuyang-MS-7E13:11311/
-[1msetting /run_id to fb20e99c-41fb-11f1-89e9-fc9d052a1524[0m
-[1mprocess[rosout-1]: started with pid [57809][0m
+[1msetting /run_id to 2ac36c64-42c5-11f1-be66-fc9d052a1524[0m
+[1mprocess[rosout-1]: started with pid [1512289][0m
 started core service [/rosout]
 [rosout-1] killing on exit
 [master] killing on exit

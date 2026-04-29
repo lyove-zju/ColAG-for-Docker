@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="502" viewBox="0 0 980 502">
+<style>
+text{font-family:DejaVu Sans,Arial,sans-serif;fill:#1f2933}
+.heading{font-size:22px;font-weight:700}
+.title{font-size:15px;font-weight:700}
+.tick{font-size:11px;fill:#64748b}
+.legend{font-size:12px;fill:#334155}
+.plot-bg{fill:#fbfaf7;stroke:#cbd5e1;stroke-width:1}
+.grid{stroke:#e5e7eb;stroke-width:1}
+.axis{stroke:#94a3b8;stroke-width:1.2}
+.summary-bg{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1}
+</style>
+<rect x="0" y="0" width="100%" height="100%" fill="#fffdf8"/>
+<text x="24" y="34" class="heading">UAV RL Dispatch Training Curves</text>
+<text x="24" y="76" class="title">BC pretraining loss</text>
+<rect x="68" y="92" width="888" height="138" class="plot-bg"/>
+<line x1="68" y1="92.0" x2="956" y2="92.0" class="grid"/>
+<text x="58" y="96.0" text-anchor="end" class="tick">0.235</text>
+<line x1="68" y1="126.5" x2="956" y2="126.5" class="grid"/>
+<text x="58" y="130.5" text-anchor="end" class="tick">0.188</text>
+<line x1="68" y1="161.0" x2="956" y2="161.0" class="grid"/>
+<text x="58" y="165.0" text-anchor="end" class="tick">0.14</text>
+<line x1="68" y1="195.5" x2="956" y2="195.5" class="grid"/>
+<text x="58" y="199.5" text-anchor="end" class="tick">0.0929</text>
+<line x1="68" y1="230.0" x2="956" y2="230.0" class="grid"/>
+<text x="58" y="234.0" text-anchor="end" class="tick">0.0455</text>
+<text x="68.0" y="252" text-anchor="middle" class="tick">-2.32</text>
+<text x="512.0" y="252" text-anchor="middle" class="tick">14.5</text>
+<text x="956.0" y="252" text-anchor="middle" class="tick">31.3</text>
+<line x1="68" y1="92" x2="68" y2="230" class="axis"/>
+<line x1="68" y1="230" x2="956" y2="230" class="axis"/>
+<polyline points="129.2,101.5 155.6,160.0 182.0,172.0 208.4,179.1 234.8,186.0 261.2,191.4 287.6,194.3 314.0,197.4 340.4,199.8 366.8,202.2 393.2,203.4 419.6,204.7 446.0,205.7 472.4,207.0 498.8,209.0 525.2,210.1 551.6,211.4 578.0,212.5 604.4,214.2 630.8,214.4 657.2,215.2 683.6,216.2 710.0,216.0 736.4,216.3 762.8,218.0 789.2,218.4 815.6,218.5 842.0,220.1 868.4,219.5 894.8,220.5" fill="none" stroke="#146C94" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="688" y1="72" x2="710" y2="72" stroke="#146C94" stroke-width="3"/>
+<text x="718" y="76" class="legend">avg_nll</text>
+<rect x="24" y="274" width="932" height="218" rx="8" class="summary-bg"/>
+<text x="44" y="302" class="title">Final evaluation summary</text>
+<text x="44" y="328" class="legend">eval_mode: event</text>
+<text x="44" y="346" class="legend">rl_vs_expert_ratio: 1.18</text>
+<text x="44" y="364" class="legend">rl_deadline_hit_rate: 0.308</text>
+<text x="44" y="382" class="legend">expert_deadline_hit_rate: 0.262</text>
+<text x="44" y="400" class="legend">rl_success_per_episode: 23.1</text>
+<text x="510" y="328" class="legend">expert_success_per_episode: 19.7</text>
+<text x="510" y="346" class="legend">rl_avg_response_time_seconds: 3.96</text>
+<text x="510" y="364" class="legend">expert_avg_response_time_seconds: 4.89</text>
+<text x="510" y="382" class="legend">rl_flight_distance_per_episode: 443.3</text>
+<text x="510" y="400" class="legend">expert_flight_distance_per_episode: 443.3</text>
+</svg>

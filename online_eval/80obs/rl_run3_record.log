@@ -1,0 +1,3 @@
+[0m[INFO] [1777449520.236725643]: Subscribing to /drone_0/broadcast/blind_info[0m
+[0m[INFO] [1777449520.238359010]: Subscribing to /drone_0/lidar_slam/odom[0m
+[0m[INFO] [1777449520.239669262]: Recording to '/work/online_eval/80obs/rl_run3.bag'.[0m
