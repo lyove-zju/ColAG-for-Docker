@@ -5,11 +5,14 @@
 #include <Eigen/StdVector>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <algorithm>
 #include <iostream>
 #include <random>
 #include <nav_msgs/Odometry.h>
+#include <opencv2/imgproc.hpp>
 #include <queue>
 #include <ros/ros.h>
+#include <set>
 #include <tuple>
 #include <visualization_msgs/Marker.h>
 
@@ -156,6 +159,18 @@ struct MappingData {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
+struct TopoClosure {
+  int id;
+  Eigen::Vector2d center_xy;
+  Eigen::Vector2d branch_dir_xy;
+  Eigen::Vector2d wall_dir_xy;
+  double left_width;
+  double right_width;
+  double score;
+  std::vector<int> addresses;
+  std::vector<Eigen::Vector2d> branch_xy;
+};
+
 class GridMap {
 public:
   GridMap() {}
@@ -230,6 +245,47 @@ private:
   // publish the neede map to other robot
   void pubCallback(const ros::TimerEvent& /*event*/);
 
+  // UAV-only topo semantic obstacle layer. It never changes the real map
+  // buffers; pubCallback only reads it while packing the normal map_info box.
+  void topoDeadendCallback(const ros::TimerEvent& /*event*/);
+  void updateTopoObservedObstacles(const pcl::PointCloud<pcl::PointXYZ>& cloud);
+  void buildTopoProjection(cv::Mat& state, cv::Mat& free_img);
+  bool traceTopoBranch(const cv::Mat& skeleton, const cv::Point& leaf, std::vector<cv::Point>& path);
+  bool makeTopoClosure(const std::vector<cv::Point>& path,
+                       const cv::Mat& state,
+                       const cv::Mat& distance_map,
+                       TopoClosure& closure);
+  void detectTopoPairClosures(const cv::Mat& state, std::vector<TopoClosure>& closures);
+  int topoPairSupport(const cv::Mat& occupied_img,
+                      int left_x,
+                      int right_x,
+                      int y,
+                      double slope_ratio) const;
+  int topoBackWallSupport(const cv::Mat& occupied_img,
+                          int left_x,
+                          int right_x,
+                          int y) const;
+  int topoFrontBlockSupport(const cv::Mat& occupied_img,
+                            int left_x,
+                            int right_x,
+                            int y) const;
+  bool isTopoLeafConfirmed(const cv::Point& leaf, const cv::Mat& state);
+  bool raycastTopoWidth(const Eigen::Vector2d& center,
+                        const Eigen::Vector2d& direction,
+                        const cv::Mat& state,
+                        double& width);
+  void fillTopoClosureCells(TopoClosure& closure, double left_width, double right_width);
+  void addTopoClosure(const TopoClosure& closure);
+  void publishTopoMarkers(const cv::Mat& skeleton);
+  void publishTopoVirtualObstacleCloud();
+  bool isTopoVirtualOccupied(int address) const;
+  bool isTopoObservedWallOccupied(int address) const;
+  int topoObserved2DSupport(int x, int y, int radius) const;
+  bool isTopoObservedWallCandidate(int x, int y) const;
+  void markTopoObservedWallCell(int x, int y);
+  void markTopoObservedWallNeighborhood(int x, int y);
+  void markTopoObservedWallsForClosure();
+
   // main update process
   void projectDepthImage();
   void raycastProcess(const pcl::PointCloud<pcl::PointXYZ> &cloud);
@@ -261,8 +317,8 @@ private:
   SynchronizerImageOdom sync_image_odom_;
 
   ros::Subscriber indep_cloud_sub_, indep_odom_sub_, extrinsic_sub_, broadcast_odom_sub_, lidar_cloud_sub_, lidar_odom_sub_, ugv_odom_sub_;
-  ros::Publisher map_pub_, map_inf_pub_, map_free_pub_;
-  ros::Timer pub_timer_, vis_timer_;
+  ros::Publisher map_pub_, map_inf_pub_, map_free_pub_, topo_marker_pub_, topo_virtual_obstacle_pub_;
+  ros::Timer pub_timer_, vis_timer_, topo_detection_timer_;
 
   //
   uniform_real_distribution<double> rand_noise_;
@@ -271,6 +327,42 @@ private:
 
   int self_id;
   double ugvbox_x_, ugvbox_y_, ugvbox_z_;
+
+  bool topo_deadend_enable_;
+  bool topo_skeleton_fallback_enable_;
+  std::string topo_deadend_scenario_;
+  double topo_deadend_period_;
+  double topo_wall_min_z_, topo_wall_max_z_;
+  double topo_obstacle_cloud_min_z_;
+  double topo_min_branch_length_;
+  double topo_leaf_check_radius_;
+  double topo_max_leaf_unknown_ratio_;
+  double topo_closure_thickness_;
+  double topo_closure_margin_;
+  double topo_closure_offset_;
+  double topo_mouth_search_depth_;
+  double topo_min_mouth_width_;
+  double topo_max_mouth_width_;
+  double topo_min_width_balance_;
+  double topo_protected_radius_;
+  double topo_centerline_max_abs_x_;
+  double topo_max_half_width_;
+  double topo_min_half_width_;
+  double topo_min_clearance_;
+  double topo_occupied_log_threshold_;
+  double topo_observed_wall_depth_;
+  double topo_observed_wall_front_;
+  double topo_observed_wall_margin_;
+  double topo_send_update_range_xy_;
+  double topo_send_update_range_z_;
+  int topo_observed_wall_min_support_;
+  int topo_max_closures_;
+  int topo_next_closure_id_;
+  std::vector<char> topo_virtual_obstacle_;
+  std::vector<char> topo_observed_wall_obstacle_;
+  std::vector<char> topo_observed_obstacle_2d_;
+  size_t topo_observed_wall_obstacle_count_;
+  std::vector<TopoClosure> topo_closures_;
 };
 
 /* ============================== definition of inline function

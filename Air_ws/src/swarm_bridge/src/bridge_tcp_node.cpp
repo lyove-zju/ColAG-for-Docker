@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <iostream>
+#include <map>
 
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Float64.h>
@@ -150,8 +151,9 @@ void map_sub_tcp_callback(const custom_msgs::map_infoConstPtr &msg)
   double t = map_msg.header.stamp.toSec();
   map_msg.header.stamp = ros::Time().fromSec(t - delta_time_);
   map_msg.header.frame_id = std::string("uav_") + std::to_string(self_id_);
-  static ros::Time t_last;
+  static std::map<int, ros::Time> t_last_by_id;
   ros::Time t_now = ros::Time::now();
+  ros::Time &t_last = t_last_by_id[msg->id_to];
   if ((t_now - t_last).toSec() < 1.0 / map_freq_)
   {
     return;

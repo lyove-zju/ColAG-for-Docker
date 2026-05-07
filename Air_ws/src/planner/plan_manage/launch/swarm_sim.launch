@@ -5,6 +5,8 @@
   <arg name="dispatch_method" default="vrptw"/>
   <arg name="rl_model_path" default=""/>
   <arg name="rl_device" default="cpu"/>
+  <arg name="topo_deadend_enable" default="false"/>
+  <arg name="topo_deadend_scenario" default=""/>
 
   <arg name="odom_topic" value="lidar_slam/odom" />
   <arg name="cmd_topic" value="planning/pos_cmd" />
@@ -22,6 +24,8 @@
       <arg name="dispatch_method" value="$(arg dispatch_method)"/>
       <arg name="rl_model_path" value="$(arg rl_model_path)"/>
       <arg name="rl_device" value="$(arg rl_device)"/>
+      <arg name="topo_deadend_enable" value="$(arg topo_deadend_enable)"/>
+      <arg name="topo_deadend_scenario" value="$(arg topo_deadend_scenario)"/>
 
       <arg name="odom_topic" value="$(arg odom_topic)"/>
       <arg name="cmd_topic" value="$(arg cmd_topic)"/>

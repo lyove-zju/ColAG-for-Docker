@@ -44,6 +44,8 @@
   <arg name="camera_pose_topic"/>
   <arg name="depth_topic"/>
   <arg name="cloud_topic"/>
+  <arg name="topo_deadend_enable" default="false"/>
+  <arg name="topo_deadend_scenario" default=""/>
 
 
   <arg name="obstacles_inflation" default = "0.20"/>
@@ -111,6 +113,30 @@
 
     <param name="grid_map/obstacles_inflation" value="$(arg obstacles_inflation)" />
     <param name="grid_map/obstacles_inflation_z" value= "$(arg obstacles_inflation_z)" />
+    <param name="grid_map/topo_deadend_enable" value="$(arg topo_deadend_enable)" />
+    <param name="grid_map/topo_deadend_scenario" value="$(arg topo_deadend_scenario)" />
+    <param name="grid_map/topo_skeleton_fallback_enable" value="false" />
+    <param name="grid_map/topo_deadend_period" value="1.0" />
+    <param name="grid_map/topo_wall_min_z" value="0.1" />
+    <param name="grid_map/topo_wall_max_z" value="0.6" />
+    <param name="grid_map/topo_obstacle_cloud_min_z" value="0.15" />
+    <param name="grid_map/topo_min_branch_length" value="1.4" />
+    <param name="grid_map/topo_closure_thickness" value="0.4" />
+    <param name="grid_map/topo_closure_margin" value="1.2" />
+    <param name="grid_map/topo_closure_offset" value="0.3" />
+    <param name="grid_map/topo_mouth_search_depth" value="4.0" />
+    <param name="grid_map/topo_min_mouth_width" value="3.0" />
+    <param name="grid_map/topo_max_mouth_width" value="8.0" />
+    <param name="grid_map/topo_min_width_balance" value="0.35" />
+    <param name="grid_map/topo_protected_radius" value="2.5" />
+    <param name="grid_map/topo_centerline_max_abs_x" value="1.2" />
+    <param name="grid_map/topo_occupied_log_threshold" value="-1000.0" />
+    <param name="grid_map/topo_observed_wall_depth" value="5.0" />
+    <param name="grid_map/topo_observed_wall_front" value="1.0" />
+    <param name="grid_map/topo_observed_wall_margin" value="1.2" />
+    <param name="grid_map/topo_observed_wall_min_support" value="2" />
+    <param name="grid_map/topo_send_update_range_xy" value="3.5" />
+    <param name="grid_map/topo_send_update_range_z" value="0.9" />
 
     <param name="grid_map/local_map_margin" value="10"/>
     <param name="grid_map/ground_height" value="-0.3"/>

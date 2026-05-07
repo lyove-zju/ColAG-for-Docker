@@ -10,6 +10,10 @@ map_arg=${2:-}
 dispatch_method=${3:-vrptw}
 rl_model_arg=${4:-}
 rl_device=${5:-cpu}
+topo_deadend_enable=${TOPO_DEADEND:-false}
+if [ "$topo_deadend_enable" = "1" ]; then
+    topo_deadend_enable=true
+fi
 
 WORKSPACE_DIR=$(pwd)
 
@@ -64,6 +68,19 @@ if ! map_name=$(resolve_map_path "$map_arg"); then
     exit 1
 fi
 
+topo_deadend_scenario=""
+map_basename=$(basename "$map_name")
+case "$map_basename" in
+    u_shape.pcd) topo_deadend_scenario="u" ;;
+    v_shape.pcd) topo_deadend_scenario="v" ;;
+    deadend.pcd) topo_deadend_scenario="deadend" ;;
+esac
+
+if [ "$topo_deadend_enable" = "true" ] && [ -z "$topo_deadend_scenario" ]; then
+    echo "TOPO_DEADEND requested, but $map_basename is not a structured U/V/deadend map; topo closures disabled for this run." >&2
+    topo_deadend_enable=false
+fi
+
 if [ "$dispatch_method" != "vrptw" ] && [ "$dispatch_method" != "rl" ]; then
     echo "Unsupported dispatch method: $dispatch_method" >&2
     echo "Use one of: vrptw, rl" >&2
@@ -92,6 +109,6 @@ cd "$UGV" && catkin_make
 cd "$UAV" && catkin_make
 
 source "$UAV/devel/setup.sh" && roslaunch ego_planner rviz.launch &
-source "$UAV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" &
+source "$UAV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" topo_deadend_enable:="$topo_deadend_enable" topo_deadend_scenario:="$topo_deadend_scenario" &
 source "$UGV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" &
 source "$MARSIM/devel/setup.sh" && roslaunch test_interface single_drone_vlp32.launch map_name:="$map_name"
