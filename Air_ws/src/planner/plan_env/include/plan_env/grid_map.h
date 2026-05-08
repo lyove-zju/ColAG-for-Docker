@@ -248,6 +248,7 @@ private:
   // UAV-only topo semantic obstacle layer. It never changes the real map
   // buffers; pubCallback only reads it while packing the normal map_info box.
   void topoDeadendCallback(const ros::TimerEvent& /*event*/);
+  void topoRefreshCallback(const ros::TimerEvent& /*event*/);
   void updateTopoObservedObstacles(const pcl::PointCloud<pcl::PointXYZ>& cloud);
   void buildTopoProjection(cv::Mat& state, cv::Mat& free_img);
   bool traceTopoBranch(const cv::Mat& skeleton, const cv::Point& leaf, std::vector<cv::Point>& path);
@@ -256,6 +257,7 @@ private:
                        const cv::Mat& distance_map,
                        TopoClosure& closure);
   void detectTopoPairClosures(const cv::Mat& state, std::vector<TopoClosure>& closures);
+  void detectTopoScenarioClosures(const cv::Mat& state, std::vector<TopoClosure>& closures);
   int topoPairSupport(const cv::Mat& occupied_img,
                       int left_x,
                       int right_x,
@@ -318,7 +320,8 @@ private:
 
   ros::Subscriber indep_cloud_sub_, indep_odom_sub_, extrinsic_sub_, broadcast_odom_sub_, lidar_cloud_sub_, lidar_odom_sub_, ugv_odom_sub_;
   ros::Publisher map_pub_, map_inf_pub_, map_free_pub_, topo_marker_pub_, topo_virtual_obstacle_pub_;
-  ros::Timer pub_timer_, vis_timer_, topo_detection_timer_;
+  std::vector<ros::Publisher> topo_direct_map_pubs_;
+  ros::Timer pub_timer_, vis_timer_, topo_detection_timer_, topo_refresh_timer_;
 
   //
   uniform_real_distribution<double> rand_noise_;
@@ -330,8 +333,10 @@ private:
 
   bool topo_deadend_enable_;
   bool topo_skeleton_fallback_enable_;
+  bool topo_direct_refresh_enable_;
   std::string topo_deadend_scenario_;
   double topo_deadend_period_;
+  double topo_direct_refresh_rate_;
   double topo_wall_min_z_, topo_wall_max_z_;
   double topo_obstacle_cloud_min_z_;
   double topo_min_branch_length_;
@@ -361,6 +366,7 @@ private:
   std::vector<char> topo_virtual_obstacle_;
   std::vector<char> topo_observed_wall_obstacle_;
   std::vector<char> topo_observed_obstacle_2d_;
+  std::set<int> topo_observed_wall_addresses_;
   size_t topo_observed_wall_obstacle_count_;
   std::vector<TopoClosure> topo_closures_;
 };

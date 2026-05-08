@@ -10,10 +10,24 @@ map_arg=${2:-}
 dispatch_method=${3:-vrptw}
 rl_model_arg=${4:-}
 rl_device=${5:-cpu}
+ugv_side_pair=${UGV_SIDE_PAIR:-false}
+if [ "$ugv_side_pair" = "1" ]; then
+    ugv_side_pair=true
+fi
 topo_deadend_enable=${TOPO_DEADEND:-false}
 if [ "$topo_deadend_enable" = "1" ]; then
     topo_deadend_enable=true
 fi
+topo_auto_trigger=${TOPO_AUTO_TRIGGER:-false}
+if [ "$topo_auto_trigger" = "1" ]; then
+    topo_auto_trigger=true
+fi
+topo_ready_timeout=${TOPO_READY_TIMEOUT:-180}
+topo_ready_frames=${TOPO_READY_FRAMES:-2}
+topo_ready_min_cells=${TOPO_READY_MIN_CELLS:-}
+topo_ready_stable_frames=${TOPO_READY_STABLE_FRAMES:-3}
+topo_ready_stable_seconds=${TOPO_READY_STABLE_SECONDS:-8.0}
+topo_ready_ratio=${TOPO_READY_RATIO:-0.98}
 
 WORKSPACE_DIR=$(pwd)
 
@@ -76,6 +90,13 @@ case "$map_basename" in
     deadend.pcd) topo_deadend_scenario="deadend" ;;
 esac
 
+if [ -z "$topo_ready_min_cells" ]; then
+    case "$topo_deadend_scenario" in
+        u) topo_ready_min_cells=1500 ;;
+        *) topo_ready_min_cells=2500 ;;
+    esac
+fi
+
 if [ "$topo_deadend_enable" = "true" ] && [ -z "$topo_deadend_scenario" ]; then
     echo "TOPO_DEADEND requested, but $map_basename is not a structured U/V/deadend map; topo closures disabled for this run." >&2
     topo_deadend_enable=false
@@ -110,5 +131,9 @@ cd "$UAV" && catkin_make
 
 source "$UAV/devel/setup.sh" && roslaunch ego_planner rviz.launch &
 source "$UAV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" topo_deadend_enable:="$topo_deadend_enable" topo_deadend_scenario:="$topo_deadend_scenario" &
-source "$UGV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" &
+source "$UGV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" ugv_side_pair:="$ugv_side_pair" &
+if [ "$topo_deadend_enable" = "true" ] && [ "$topo_auto_trigger" = "true" ]; then
+    echo "TOPO_AUTO_TRIGGER enabled: waiting for topo obstacle cells in every UGV grid_map before /traj_start_trigger." >&2
+    source "$UAV/devel/setup.sh" && python3 "$UAV/src/planner/plan_env/scripts/topo_ready_trigger.py" --ugv-num "$ugv_num" --timeout "$topo_ready_timeout" --ready-frames "$topo_ready_frames" --min-closure-cells "$topo_ready_min_cells" --stable-frames "$topo_ready_stable_frames" --stable-seconds "$topo_ready_stable_seconds" --required-ratio "$topo_ready_ratio" &
+fi
 source "$MARSIM/devel/setup.sh" && roslaunch test_interface single_drone_vlp32.launch map_name:="$map_name"

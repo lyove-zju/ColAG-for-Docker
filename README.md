@@ -339,6 +339,33 @@ python3 MARSIM_ws/src/MARSIM/map_generator/scripts/generate_structured_obs_map.p
 Use `--shape-clearance` to move random background obstacles farther from the
 V/U/dead-end structures while keeping the structures themselves unchanged.
 
+Topo dead-end closure is disabled by default. For structured topo tests, enable
+it explicitly:
+
+```sh
+TOPO_DEADEND=1 ./run.sh 3 u_shape vrptw
+```
+
+To avoid starting UGVs before the UAV has generated and shared the virtual
+topo obstacles, use the optional ready gate. It waits until the topo obstacle
+cloud is stable and every `/ugv_i/broadcast/grid_map.occu_address` contains
+those cells, then publishes the normal `/traj_start_trigger` automatically:
+
+```sh
+TOPO_DEADEND=1 TOPO_AUTO_TRIGGER=1 ./run.sh 3 u_shape vrptw
+```
+
+To test only the original left/right UGV starts and remove the middle start,
+run two UGVs with the side-pair switch:
+
+```sh
+UGV_SIDE_PAIR=1 TOPO_DEADEND=1 TOPO_AUTO_TRIGGER=1 ./run.sh 2 u_shape vrptw
+```
+
+For `u_shape`, the gate waits by default for at least 1500 topo obstacle cells
+and 8 seconds of stable topo cloud before checking UGV maps. You can override
+these with `TOPO_READY_MIN_CELLS` and `TOPO_READY_STABLE_SECONDS`.
+
 For RL dispatch, keep the same map-name position and pass the dispatch method
 and model arguments as usual:
 

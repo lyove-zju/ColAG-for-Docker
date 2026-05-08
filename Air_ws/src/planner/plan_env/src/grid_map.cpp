@@ -37,6 +37,12 @@ Eigen::Vector2d topoPixelToWorld(const MappingParameters& mp, const cv::Point& p
                          (static_cast<double>(p.y) + 0.5) * mp.resolution_ + mp.map_origin_(1));
 }
 
+cv::Point topoWorldToPixel(const MappingParameters& mp, const Eigen::Vector2d& p)
+{
+  return cv::Point(static_cast<int>(std::floor((p.x() - mp.map_origin_(0)) * mp.resolution_inv_)),
+                   static_cast<int>(std::floor((p.y() - mp.map_origin_(1)) * mp.resolution_inv_)));
+}
+
 double topoPathLength(const std::vector<cv::Point>& path, double resolution)
 {
   double length = 0.0;
@@ -198,8 +204,10 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/self_id", self_id, 0);
   node_.param("grid_map/topo_deadend_enable", topo_deadend_enable_, false);
   node_.param("grid_map/topo_skeleton_fallback_enable", topo_skeleton_fallback_enable_, false);
+  node_.param("grid_map/topo_direct_refresh_enable", topo_direct_refresh_enable_, true);
   node_.param("grid_map/topo_deadend_scenario", topo_deadend_scenario_, string(""));
   node_.param("grid_map/topo_deadend_period", topo_deadend_period_, 1.0);
+  node_.param("grid_map/topo_direct_refresh_rate", topo_direct_refresh_rate_, 10.0);
   node_.param("grid_map/topo_wall_min_z", topo_wall_min_z_, 0.1);
   node_.param("grid_map/topo_wall_max_z", topo_wall_max_z_, 0.6);
   node_.param("grid_map/topo_obstacle_cloud_min_z", topo_obstacle_cloud_min_z_, 0.15);
@@ -318,6 +326,12 @@ void GridMap::initMap(ros::NodeHandle &nh)
         node_.advertise<sensor_msgs::PointCloud2>("grid_map/topo_virtual_obstacle", 10);
     topo_detection_timer_ = node_.createTimer(
         ros::Duration(std::max(0.1, topo_deadend_period_)), &GridMap::topoDeadendCallback, this);
+    if (topo_direct_refresh_enable_)
+    {
+      topo_refresh_timer_ = node_.createTimer(
+          ros::Duration(1.0 / std::max(1.0, topo_direct_refresh_rate_)),
+          &GridMap::topoRefreshCallback, this);
+    }
     ROS_WARN("[TopoDeadEnd] enabled: semantic wall z=[%.2f, %.2f], cloud_z_min=%.2f, period=%.2f s, occ_log_thresh=%.3f",
              topo_wall_min_z_, topo_wall_max_z_, topo_obstacle_cloud_min_z_,
              topo_deadend_period_, topo_occupied_log_threshold_);
@@ -782,13 +796,13 @@ void GridMap::pubCallback(const ros::TimerEvent & /*event*/)
   {
     if(md_.ugv_odom_buf_[i].drone_id == -1) continue;
     custom_msgs::map_info sendmap;
-    std::set<int> active_topo_closure_addresses;
+    std::set<int> active_topo_obstacle_addresses;
     if (topo_deadend_enable_ && !topo_closures_.empty())
     {
       for (const auto& closure : topo_closures_)
       {
         for (const int address : closure.addresses)
-          active_topo_closure_addresses.insert(address);
+          active_topo_obstacle_addresses.insert(address);
       }
     }
    
@@ -877,10 +891,10 @@ void GridMap::pubCallback(const ros::TimerEvent & /*event*/)
         for (int z = min_bound(2); z <= max_bound(2); ++z)
         {
           int address = toAddress(x, y, z);
-          const bool active_topo_closure =
-              active_topo_closure_addresses.find(address) != active_topo_closure_addresses.end();
+          const bool active_topo_obstacle =
+              active_topo_obstacle_addresses.find(address) != active_topo_obstacle_addresses.end();
           if (md_.occupancy_buffer_[address] >= send_occupied_log_threshold ||
-              active_topo_closure ||
+              active_topo_obstacle ||
               isTopoObservedWallOccupied(address))
           {
             sendmap.occu_address.push_back(address);
@@ -902,14 +916,14 @@ void GridMap::pubCallback(const ros::TimerEvent & /*event*/)
           // cloud.push_back(pt);  
         }
 
-    size_t topo_extra_closure_cells = 0;
-    if (topo_deadend_enable_ && !active_topo_closure_addresses.empty())
+    size_t topo_extra_obstacle_cells = 0;
+    if (topo_deadend_enable_ && !topo_direct_refresh_enable_ && !active_topo_obstacle_addresses.empty())
     {
       const int size_y = mp_.map_voxel_num_(1);
       const int size_z = mp_.map_voxel_num_(2);
       const int yz_size = size_y * size_z;
 
-      for (const int address : active_topo_closure_addresses)
+      for (const int address : active_topo_obstacle_addresses)
       {
         if (address < 0 || address >= static_cast<int>(topo_virtual_obstacle_.size()))
           continue;
@@ -927,19 +941,132 @@ void GridMap::pubCallback(const ros::TimerEvent & /*event*/)
           continue;
 
         sendmap.occu_address.push_back(address);
-        ++topo_extra_closure_cells;
+        ++topo_extra_obstacle_cells;
       }
     }
 
-    if (topo_extra_closure_cells > 0)
+    if (topo_extra_obstacle_cells > 0)
     {
       ROS_INFO_THROTTLE(2.0,
-                        "[TopoDeadEnd] piggybacked %zu closure cells to ugv_%d outside update box",
-                        topo_extra_closure_cells, i);
+                        "[TopoDeadEnd] piggybacked %zu topo obstacle cells to ugv_%d outside update box",
+                        topo_extra_obstacle_cells, i);
     }
 
     map_free_pub_.publish(sendmap);
   }
+}
+
+void GridMap::topoRefreshCallback(const ros::TimerEvent& /*event*/)
+{
+  if (!topo_deadend_enable_ || topo_closures_.empty())
+    return;
+
+  const double send_occupied_log_threshold =
+      std::min(mp_.min_occupancy_log_, topo_occupied_log_threshold_);
+
+  std::set<int> active_topo_obstacle_addresses;
+  Eigen::Vector3i patch_min = mp_.map_voxel_num_ - Eigen::Vector3i::Ones();
+  Eigen::Vector3i patch_max = Eigen::Vector3i::Zero();
+  bool have_patch_bounds = false;
+  for (const auto& closure : topo_closures_)
+  {
+    for (const int address : closure.addresses)
+    {
+      active_topo_obstacle_addresses.insert(address);
+      if (address < 0 || address >= static_cast<int>(topo_virtual_obstacle_.size()))
+        continue;
+
+      const int size_y = mp_.map_voxel_num_(1);
+      const int size_z = mp_.map_voxel_num_(2);
+      const int yz_size = size_y * size_z;
+      Eigen::Vector3i idx;
+      idx(0) = address / yz_size;
+      idx(1) = (address / size_z) % size_y;
+      idx(2) = address % size_z;
+      patch_min = patch_min.cwiseMin(idx);
+      patch_max = patch_max.cwiseMax(idx);
+      have_patch_bounds = true;
+    }
+  }
+
+  if (active_topo_obstacle_addresses.empty() || !have_patch_bounds)
+    return;
+
+  const int patch_pad_xy =
+      std::max(1, static_cast<int>(std::ceil(3.0 * mp_.resolution_inv_)));
+  patch_min(0) -= patch_pad_xy;
+  patch_min(1) -= patch_pad_xy;
+  patch_max(0) += patch_pad_xy;
+  patch_max(1) += patch_pad_xy;
+  boundIndex(patch_min);
+  boundIndex(patch_max);
+
+  if (topo_direct_map_pubs_.size() < md_.ugv_odom_buf_.size())
+  {
+    const size_t old_size = topo_direct_map_pubs_.size();
+    topo_direct_map_pubs_.resize(md_.ugv_odom_buf_.size());
+    for (size_t id = old_size; id < topo_direct_map_pubs_.size(); ++id)
+    {
+      const std::string topic = std::string("/ugv_") + std::to_string(id) + "/broadcast/grid_map";
+      topo_direct_map_pubs_[id] = node_.advertise<custom_msgs::map_info>(topic, 10);
+    }
+  }
+
+  size_t last_occu_count = 0;
+  size_t last_unknown_count = 0;
+  for (size_t id = 0; id < md_.ugv_odom_buf_.size(); ++id)
+  {
+    if (md_.ugv_odom_buf_[id].drone_id == -1 ||
+        topo_direct_map_pubs_[id].getTopic().empty())
+      continue;
+
+    custom_msgs::map_info msg;
+    msg.header.stamp = ros::Time::now();
+    msg.header.frame_id = std::string("uav_") + std::to_string(self_id);
+    msg.id_from = self_id;
+    msg.id_to = static_cast<int>(id);
+    msg.resolution = mp_.resolution_;
+    msg.origin_x = mp_.map_origin_(0);
+    msg.origin_y = mp_.map_origin_(1);
+    msg.origin_z = mp_.map_origin_(2);
+    msg.size_x = mp_.map_voxel_num_(0);
+    msg.size_y = mp_.map_voxel_num_(1);
+    msg.size_z = mp_.map_voxel_num_(2);
+
+    msg.update_min_x = patch_min(0);
+    msg.update_min_y = patch_min(1);
+    msg.update_min_z = patch_min(2);
+    msg.update_max_x = patch_max(0);
+    msg.update_max_y = patch_max(1);
+    msg.update_max_z = patch_max(2);
+
+    for (int x = patch_min(0); x <= patch_max(0); ++x)
+      for (int y = patch_min(1); y <= patch_max(1); ++y)
+        for (int z = patch_min(2); z <= patch_max(2); ++z)
+        {
+          const int address = toAddress(x, y, z);
+          if (md_.occupancy_buffer_[address] >= send_occupied_log_threshold ||
+              active_topo_obstacle_addresses.find(address) != active_topo_obstacle_addresses.end())
+          {
+            msg.occu_address.push_back(address);
+          }
+          else if (md_.occupancy_buffer_[address] < mp_.clamp_min_log_)
+          {
+            msg.unknow_address.push_back(address);
+          }
+        }
+
+    last_occu_count = msg.occu_address.size();
+    last_unknown_count = msg.unknow_address.size();
+    topo_direct_map_pubs_[id].publish(msg);
+  }
+
+  ROS_INFO_THROTTLE(2.0,
+                    "[TopoDeadEnd] refreshed topo patch occ=%zu unknown=%zu closure=%zu directly to %zu UGV map topics",
+                    last_occu_count,
+                    last_unknown_count,
+                    active_topo_obstacle_addresses.size(),
+                    topo_direct_map_pubs_.size());
 }
 
 bool GridMap::isTopoVirtualOccupied(int address) const
@@ -1036,6 +1163,7 @@ void GridMap::markTopoObservedWallCell(int x, int y)
     if (topo_observed_wall_obstacle_[address] == 0)
     {
       topo_observed_wall_obstacle_[address] = 1;
+      topo_observed_wall_addresses_.insert(address);
       ++topo_observed_wall_obstacle_count_;
     }
   }
@@ -1532,6 +1660,130 @@ void GridMap::detectTopoPairClosures(const cv::Mat& state, std::vector<TopoClosu
   }
 }
 
+void GridMap::detectTopoScenarioClosures(const cv::Mat& state, std::vector<TopoClosure>& closures)
+{
+  if (topo_deadend_scenario_ != "u")
+    return;
+
+  cv::Mat occupied_img = cv::Mat::zeros(state.size(), CV_8UC1);
+  for (int y = 0; y < state.rows; ++y)
+    for (int x = 0; x < state.cols; ++x)
+    {
+      if (state.at<unsigned char>(y, x) == TOPO_OCCUPIED)
+        occupied_img.at<unsigned char>(y, x) = 255;
+    }
+  cv::dilate(occupied_img, occupied_img, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+
+  const double shape_scale = 0.25;
+  const double opening_scale = 1.9;
+  const double depth_scale = 0.95;
+  const double wall_center_x = 4.2 * shape_scale * opening_scale;
+  const double mouth_local_y = 6.5 * shape_scale * depth_scale;
+  const double back_local_y = -7.5 * shape_scale * depth_scale;
+  const double obstacle_half = 0.45;
+  const double side_step = 0.25;
+  const double back_step = 0.2;
+  const double centers_y[] = {9.5, 0.0, -9.5};
+
+  auto observed_occupied = [&](const Eigen::Vector2d& p, int radius) {
+    const cv::Point px = topoWorldToPixel(mp_, p);
+    if (px.x < 0 || px.x >= occupied_img.cols || px.y < 0 || px.y >= occupied_img.rows)
+      return false;
+    return topoOccupiedNear(occupied_img, px.x, px.y, radius);
+  };
+
+  for (const double center_y : centers_y)
+  {
+    const Eigen::Vector2d mouth_center(0.0, center_y + mouth_local_y);
+    if (topoNearProtectedPoint(mouth_center, topo_protected_radius_))
+      continue;
+
+    bool duplicate = false;
+    for (const auto& existing : topo_closures_)
+    {
+      if ((existing.center_xy - mouth_center).norm() < 0.8)
+      {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate)
+    {
+      for (const auto& existing : closures)
+      {
+        if ((existing.center_xy - mouth_center).norm() < 0.8)
+        {
+          duplicate = true;
+          break;
+        }
+      }
+    }
+    if (duplicate)
+      continue;
+
+    const double back_y = center_y + back_local_y;
+    int left_support = 0;
+    int right_support = 0;
+    int side_samples = 0;
+    for (double y = back_y; y <= mouth_center.y() + 1e-6; y += side_step)
+    {
+      ++side_samples;
+      if (observed_occupied(Eigen::Vector2d(-wall_center_x, y), 3))
+        ++left_support;
+      if (observed_occupied(Eigen::Vector2d(wall_center_x, y), 3))
+        ++right_support;
+    }
+
+    int back_support = 0;
+    int back_samples = 0;
+    for (double x = -wall_center_x; x <= wall_center_x + 1e-6; x += back_step)
+    {
+      ++back_samples;
+      if (observed_occupied(Eigen::Vector2d(x, back_y), 3))
+        ++back_support;
+    }
+
+    const int min_side_support = std::max(4, static_cast<int>(std::ceil(0.35 * side_samples)));
+    const int min_back_support = std::max(5, static_cast<int>(std::ceil(0.30 * back_samples)));
+    if (left_support < min_side_support ||
+        right_support < min_side_support ||
+        back_support < min_back_support)
+    {
+      ROS_INFO_THROTTLE(3.0,
+                        "[TopoDeadEnd] u prior pending at y=%.2f support left=%d/%d right=%d/%d back=%d/%d",
+                        mouth_center.y(), left_support, side_samples,
+                        right_support, side_samples, back_support, back_samples);
+      continue;
+    }
+
+    TopoClosure closure;
+    closure.id = 0;
+    closure.center_xy = mouth_center;
+    closure.wall_dir_xy = Eigen::Vector2d(1.0, 0.0);
+    closure.branch_dir_xy = Eigen::Vector2d(0.0, 1.0);
+    // For the structured U map, make the virtual cap overlap the outer faces
+    // of the two side walls. A cap that only spans the inner gap leaves tiny
+    // corner passages that the optimizer can still thread through.
+    closure.left_width = std::max(0.5, wall_center_x + obstacle_half);
+    closure.right_width = closure.left_width;
+    closure.score = 0.1 * (side_samples * 2 + back_samples - left_support - right_support - back_support);
+    closure.branch_xy.clear();
+    closure.branch_xy.push_back(Eigen::Vector2d(0.0, back_y));
+    closure.branch_xy.push_back(mouth_center);
+    fillTopoClosureCells(closure, closure.left_width, closure.right_width);
+    if (closure.addresses.empty())
+      continue;
+
+    closures.push_back(closure);
+    ROS_INFO("[TopoDeadEnd] u prior confirmed center=(%.2f, %.2f) support left=%d/%d right=%d/%d back=%d/%d cells=%zu",
+             closure.center_xy.x(), closure.center_xy.y(),
+             left_support, side_samples, right_support, side_samples,
+             back_support, back_samples, closure.addresses.size());
+    if (static_cast<int>(topo_closures_.size() + closures.size()) >= topo_max_closures_)
+      return;
+  }
+}
+
 bool GridMap::makeTopoClosure(const std::vector<cv::Point>& path,
                               const cv::Mat& state,
                               const cv::Mat& distance_map,
@@ -1837,6 +2089,7 @@ void GridMap::topoDeadendCallback(const ros::TimerEvent& /*event*/)
 
   std::vector<TopoClosure> new_closures;
   detectTopoPairClosures(state, new_closures);
+  detectTopoScenarioClosures(state, new_closures);
 
   int leaf_count = 0;
   int traced_count = 0;
