@@ -12,7 +12,7 @@
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
 
-            <arg name="init_x" value="$(eval -2.0 if ugv_side_pair and ugv_num == 2 else 0.0)"/>
+            <arg name="init_x" value="$(eval 0.0 if ugv_num == 3 else -2.0)"/>
             <arg name="init_y" value="16.0"/>
             <arg name="init_z" value="0.3"/>
 
@@ -30,11 +30,11 @@
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
 
-            <arg name="init_x" value="$(eval 2.0 if ugv_side_pair and ugv_num == 2 else -2.0)"/>
+            <arg name="init_x" value="$(eval 2.0 if ugv_side_pair and ugv_num == 2 else (0.0 if ugv_num == 2 else -2.0))"/>
             <arg name="init_y" value="16.0"/>
             <arg name="init_z" value="0.3"/>
 
-            <arg name="target_x" value="$(eval 2.0 if ugv_side_pair and ugv_num == 2 else -2.0)"/>
+            <arg name="target_x" value="$(eval 2.0 if ugv_side_pair and ugv_num == 2 else (0.0 if ugv_num == 2 else -2.0))"/>
             <arg name="target_y" value="-16.0"/>
             <arg name="target_z" value="0.3"/>
 

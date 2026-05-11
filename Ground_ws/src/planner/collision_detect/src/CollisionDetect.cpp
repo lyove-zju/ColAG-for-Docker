@@ -475,7 +475,7 @@ Eigen::Vector3d CollisionDetect::choosePoint(Eigen::Vector3d pos, Eigen::Vector3
   dir(2) = 0;
   dir = dir.normalized();
 
-  get_point = pos - 2.0 * dir;
+  get_point = pos + 0.5 * dir;
   if(isInBound(get_point) > 0)
   {
     int cho = isInBound(pos);
@@ -557,4 +557,3 @@ int CollisionDetect::isInBound(const Eigen::Vector3d &pos)
   }
   return 0;
 }
-

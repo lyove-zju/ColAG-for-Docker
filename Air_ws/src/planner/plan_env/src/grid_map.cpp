@@ -1761,10 +1761,10 @@ void GridMap::detectTopoScenarioClosures(const cv::Mat& state, std::vector<TopoC
     closure.center_xy = mouth_center;
     closure.wall_dir_xy = Eigen::Vector2d(1.0, 0.0);
     closure.branch_dir_xy = Eigen::Vector2d(0.0, 1.0);
-    // For the structured U map, make the virtual cap overlap the outer faces
-    // of the two side walls. A cap that only spans the inner gap leaves tiny
-    // corner passages that the optimizer can still thread through.
-    closure.left_width = std::max(0.5, wall_center_x + obstacle_half);
+    // Match the structured U mouth itself: close the gap between the inner
+    // faces of the two side obstacles without extending outside the mouth.
+    const double inner_half_width = std::max(mp_.resolution_, wall_center_x - obstacle_half);
+    closure.left_width = inner_half_width;
     closure.right_width = closure.left_width;
     closure.score = 0.1 * (side_samples * 2 + back_samples - left_support - right_support - back_support);
     closure.branch_xy.clear();
