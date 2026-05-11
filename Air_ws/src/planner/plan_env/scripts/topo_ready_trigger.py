@@ -12,6 +12,7 @@ import sensor_msgs.point_cloud2 as pc2
 from custom_msgs.msg import map_info
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Int32, Int32MultiArray
 
 
 Point3 = Tuple[float, float, float]
@@ -34,6 +35,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--required-ratio", type=float, default=0.98)
     parser.add_argument("--no-trigger", action="store_true")
     parser.add_argument("--trigger-repeat", type=int, default=5)
+    parser.add_argument("--detour-enable", action="store_true")
+    parser.add_argument("--detour-settle-seconds", type=float, default=2.0)
     return parser.parse_args()
 
 
@@ -136,6 +139,77 @@ def publish_trigger(repeat: int) -> None:
         rate.sleep()
 
 
+def wait_for_detour_acks(
+    ugv_num: int,
+    drone_id: int,
+    timeout: float,
+    settle_seconds: float,
+) -> None:
+    latest_required = {"pairs": None}
+    latest_ack: Dict[int, int] = {ugv_id: 0 for ugv_id in range(ugv_num)}
+
+    def required_cb(msg: Int32MultiArray) -> None:
+        pairs = []
+        data = list(msg.data)
+        for i in range(0, len(data) - 1, 2):
+            ugv_id = int(data[i])
+            seq = int(data[i + 1])
+            if 0 <= ugv_id < ugv_num and seq > 0:
+                pairs.append((ugv_id, seq))
+        latest_required["pairs"] = pairs
+
+    def make_ack_cb(ugv_id: int):
+        def ack_cb(msg: Int32) -> None:
+            latest_ack[ugv_id] = max(latest_ack[ugv_id], int(msg.data))
+        return ack_cb
+
+    subs = [
+        rospy.Subscriber(f"/drone_{drone_id}/topo_detour_required", Int32MultiArray, required_cb, queue_size=1)
+    ]
+    for ugv_id in range(ugv_num):
+        subs.append(
+            rospy.Subscriber(
+                f"/ugv_{ugv_id}/ego_planner_node/topo_route_ack",
+                Int32,
+                make_ack_cb(ugv_id),
+                queue_size=5,
+            )
+        )
+
+    start = time.monotonic()
+    deadline = start + timeout
+    rate = rospy.Rate(10.0)
+    while not rospy.is_shutdown() and time.monotonic() < deadline:
+        pairs = latest_required["pairs"]
+        if pairs is None:
+            rospy.loginfo_throttle(
+                2.0,
+                "[TopoReady] waiting for /drone_%d/topo_detour_required",
+                drone_id,
+            )
+            rate.sleep()
+            continue
+
+        missing = [(ugv_id, seq, latest_ack.get(ugv_id, 0)) for ugv_id, seq in pairs
+                   if latest_ack.get(ugv_id, 0) < seq]
+        if not missing and time.monotonic() - start >= settle_seconds:
+            if pairs:
+                rospy.loginfo("[TopoReady] topo detour route acks ready: %s", pairs)
+            else:
+                rospy.loginfo("[TopoReady] no topo detour routes required")
+            return
+
+        rospy.loginfo_throttle(
+            2.0,
+            "[TopoReady] waiting detour acks, required=%s missing=%s",
+            pairs,
+            missing,
+        )
+        rate.sleep()
+
+    raise TimeoutError("timed out waiting for topo detour route acknowledgements")
+
+
 def main() -> int:
     args = parse_args()
     if args.ugv_num <= 0:
@@ -200,6 +274,8 @@ def main() -> int:
 
         if all_ready:
             rospy.loginfo("[TopoReady] all %d UGV maps contain topo closure cells", args.ugv_num)
+            if args.detour_enable:
+                wait_for_detour_acks(args.ugv_num, args.drone_id, args.timeout, args.detour_settle_seconds)
             if not args.no_trigger:
                 publish_trigger(args.trigger_repeat)
                 rospy.loginfo("[TopoReady] published /traj_start_trigger")

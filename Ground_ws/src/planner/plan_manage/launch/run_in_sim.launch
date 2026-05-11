@@ -15,6 +15,7 @@
   <arg name="self_id"/>
   <arg name="uav_num"/>
   <arg name="ugv_num"/>
+  <arg name="topo_detour_enable" default="false"/>
 
   <arg name="localsim"/>
 
@@ -178,6 +179,7 @@
     <arg name="planning_horizon" value="5.0" />
 
     <arg name="use_distinctive_trajs" value="true" />
+    <arg name="topo_detour_enable" value="$(arg topo_detour_enable)" />
 
     <!-- 1: use 2D Nav Goal to select goal  -->
     <!-- 2: use global waypoints below  -->

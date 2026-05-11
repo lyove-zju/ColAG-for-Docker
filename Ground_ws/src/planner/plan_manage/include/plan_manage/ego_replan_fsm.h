@@ -8,6 +8,7 @@
 #include <sensor_msgs/Imu.h>
 #include <ros/ros.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Int32.h>
 #include <vector>
 #include <visualization_msgs/Marker.h>
 
@@ -70,6 +71,10 @@ namespace ego_planner
     double emergency_time_;
     bool flag_realworld_experiment_;
     bool enable_fail_safe_;
+    bool topo_detour_enable_ = false;
+    bool topo_have_pending_detour_ = false;
+    int topo_last_route_seq_ = 0;
+    nav_msgs::Path topo_pending_detour_;
 
     /* planning data */
     bool have_trigger_, have_target_, have_odom_, have_new_target_, have_recv_pre_agent_;
@@ -99,8 +104,8 @@ namespace ego_planner
     /* ROS utils */
     ros::NodeHandle node_;
     ros::Timer exec_timer_, safety_timer_;
-    ros::Subscriber waypoint_sub_, odom_sub_, swarm_trajs_sub_, broadcast_bspline_sub_, broadcast_odom_sub_, trigger_sub_, master_traj_sub;
-    ros::Publisher replan_pub_, new_pub_, bspline_pub_, data_disp_pub_, swarm_trajs_pub_, broadcast_bspline_pub_;
+    ros::Subscriber waypoint_sub_, odom_sub_, swarm_trajs_sub_, broadcast_bspline_sub_, broadcast_odom_sub_, trigger_sub_, master_traj_sub, topo_detour_sub_;
+    ros::Publisher replan_pub_, new_pub_, bspline_pub_, data_disp_pub_, swarm_trajs_pub_, broadcast_bspline_pub_, topo_current_goal_pub_, topo_route_ack_pub_;
     ros::Time last_waypoint_time_ = ros::Time().fromSec(0.0);
     /* helper functions */
     bool callReboundReplan(bool flag_use_poly_init, bool flag_randomPolyTraj); // front-end and back-end method
@@ -115,6 +120,9 @@ namespace ego_planner
 
     void readGivenWps();
     void planNextWaypoint(const Eigen::Vector3d next_wp);
+    bool applyTopoDetourPath(const nav_msgs::Path& path);
+    void publishTopoCurrentGoal(const Eigen::Vector3d& goal);
+    void publishTopoRouteAck(int seq);
     void getLocalTarget();
 
     /* ROS functions */
@@ -123,6 +131,7 @@ namespace ego_planner
     void waypointCallback(const geometry_msgs::PoseStampedPtr &msg);
     void realWaypointCallback(const nav_msgs::OdometryConstPtr &msg);
     void triggerCallback(const geometry_msgs::PoseStampedPtr &msg);
+    void topoDetourCallback(const nav_msgs::PathConstPtr &msg);
     void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
     void swarmTrajsCallback(const traj_utils::MultiBsplinesPtr &msg);
     void BroadcastBsplineCallback(const traj_utils::BsplinePtr &msg);

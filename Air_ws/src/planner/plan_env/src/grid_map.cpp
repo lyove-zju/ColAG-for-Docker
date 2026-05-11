@@ -1,4 +1,6 @@
 #include "plan_env/grid_map.h"
+#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/MultiArrayDimension.h>
 
 // #define current_img_ md_.depth_image_[image_cnt_ & 1]
 // #define last_img_ md_.depth_image_[!(image_cnt_ & 1)]
@@ -324,6 +326,8 @@ void GridMap::initMap(ros::NodeHandle &nh)
     topo_marker_pub_ = node_.advertise<visualization_msgs::Marker>("grid_map/topo_deadend_markers", 10);
     topo_virtual_obstacle_pub_ =
         node_.advertise<sensor_msgs::PointCloud2>("grid_map/topo_virtual_obstacle", 10);
+    topo_closure_pub_ =
+        node_.advertise<std_msgs::Float32MultiArray>("grid_map/topo_closures", 1, true);
     topo_detection_timer_ = node_.createTimer(
         ros::Duration(std::max(0.1, topo_deadend_period_)), &GridMap::topoDeadendCallback, this);
     if (topo_direct_refresh_enable_)
@@ -1905,6 +1909,55 @@ void GridMap::addTopoClosure(const TopoClosure& closure)
            closure.left_width + closure.right_width + 2.0 * topo_closure_margin_,
            closure.left_width, closure.right_width, closure.score,
            closure.addresses.size());
+  publishTopoClosureMetadata();
+}
+
+void GridMap::publishTopoClosureMetadata()
+{
+  if (!topo_deadend_enable_ || topo_closure_pub_.getTopic().empty())
+    return;
+
+  constexpr int row_size = 15;
+  std_msgs::Float32MultiArray msg;
+  msg.layout.dim.resize(2);
+  msg.layout.dim[0].label = "closures";
+  msg.layout.dim[0].size = topo_closures_.size();
+  msg.layout.dim[0].stride = topo_closures_.size() * row_size;
+  msg.layout.dim[1].label = "fields";
+  msg.layout.dim[1].size = row_size;
+  msg.layout.dim[1].stride = row_size;
+  msg.layout.data_offset = 0;
+  msg.data.reserve(topo_closures_.size() * row_size);
+
+  for (const auto& closure : topo_closures_)
+  {
+    double branch_back_depth = 0.0;
+    double branch_front_depth = 0.0;
+    for (const auto& point : closure.branch_xy)
+    {
+      const double along = (point - closure.center_xy).dot(closure.branch_dir_xy);
+      branch_front_depth = std::max(branch_front_depth, along);
+      branch_back_depth = std::max(branch_back_depth, -along);
+    }
+
+    msg.data.push_back(static_cast<float>(closure.id));
+    msg.data.push_back(static_cast<float>(closure.center_xy.x()));
+    msg.data.push_back(static_cast<float>(closure.center_xy.y()));
+    msg.data.push_back(static_cast<float>(closure.wall_dir_xy.x()));
+    msg.data.push_back(static_cast<float>(closure.wall_dir_xy.y()));
+    msg.data.push_back(static_cast<float>(closure.branch_dir_xy.x()));
+    msg.data.push_back(static_cast<float>(closure.branch_dir_xy.y()));
+    msg.data.push_back(static_cast<float>(closure.left_width));
+    msg.data.push_back(static_cast<float>(closure.right_width));
+    msg.data.push_back(static_cast<float>(topo_closure_thickness_));
+    msg.data.push_back(static_cast<float>(topo_wall_min_z_));
+    msg.data.push_back(static_cast<float>(topo_wall_max_z_));
+    msg.data.push_back(static_cast<float>(closure.addresses.size()));
+    msg.data.push_back(static_cast<float>(branch_back_depth));
+    msg.data.push_back(static_cast<float>(branch_front_depth));
+  }
+
+  topo_closure_pub_.publish(msg);
 }
 
 void GridMap::publishTopoMarkers(const cv::Mat& skeleton)
@@ -2179,6 +2232,7 @@ void GridMap::topoDeadendCallback(const ros::TimerEvent& /*event*/)
   if (!topo_closures_.empty())
   {
     ROS_INFO_THROTTLE(3.0, "[TopoDeadEnd] active closures=%zu", topo_closures_.size());
+    publishTopoClosureMetadata();
   }
   else
   {

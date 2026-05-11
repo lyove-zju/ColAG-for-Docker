@@ -18,6 +18,10 @@ topo_deadend_enable=${TOPO_DEADEND:-false}
 if [ "$topo_deadend_enable" = "1" ]; then
     topo_deadend_enable=true
 fi
+topo_detour_enable=${TOPO_DETOUR:-false}
+if [ "$topo_detour_enable" = "1" ]; then
+    topo_detour_enable=true
+fi
 topo_auto_trigger=${TOPO_AUTO_TRIGGER:-false}
 if [ "$topo_auto_trigger" = "1" ]; then
     topo_auto_trigger=true
@@ -130,10 +134,14 @@ cd "$UGV" && catkin_make
 cd "$UAV" && catkin_make
 
 source "$UAV/devel/setup.sh" && roslaunch ego_planner rviz.launch &
-source "$UAV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" topo_deadend_enable:="$topo_deadend_enable" topo_deadend_scenario:="$topo_deadend_scenario" &
-source "$UGV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" ugv_side_pair:="$ugv_side_pair" &
+source "$UAV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" topo_deadend_enable:="$topo_deadend_enable" topo_deadend_scenario:="$topo_deadend_scenario" topo_detour_enable:="$topo_detour_enable" &
+source "$UGV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" ugv_side_pair:="$ugv_side_pair" topo_detour_enable:="$topo_detour_enable" &
 if [ "$topo_deadend_enable" = "true" ] && [ "$topo_auto_trigger" = "true" ]; then
     echo "TOPO_AUTO_TRIGGER enabled: waiting for topo obstacle cells in every UGV grid_map before /traj_start_trigger." >&2
-    source "$UAV/devel/setup.sh" && python3 "$UAV/src/planner/plan_env/scripts/topo_ready_trigger.py" --ugv-num "$ugv_num" --timeout "$topo_ready_timeout" --ready-frames "$topo_ready_frames" --min-closure-cells "$topo_ready_min_cells" --stable-frames "$topo_ready_stable_frames" --stable-seconds "$topo_ready_stable_seconds" --required-ratio "$topo_ready_ratio" &
+    detour_args=()
+    if [ "$topo_detour_enable" = "true" ]; then
+        detour_args+=(--detour-enable)
+    fi
+    source "$UAV/devel/setup.sh" && python3 "$UAV/src/planner/plan_env/scripts/topo_ready_trigger.py" --ugv-num "$ugv_num" --timeout "$topo_ready_timeout" --ready-frames "$topo_ready_frames" --min-closure-cells "$topo_ready_min_cells" --stable-frames "$topo_ready_stable_frames" --stable-seconds "$topo_ready_stable_seconds" --required-ratio "$topo_ready_ratio" "${detour_args[@]}" &
 fi
 source "$MARSIM/devel/setup.sh" && roslaunch test_interface single_drone_vlp32.launch map_name:="$map_name"

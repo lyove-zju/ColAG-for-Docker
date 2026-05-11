@@ -278,6 +278,7 @@ private:
                         double& width);
   void fillTopoClosureCells(TopoClosure& closure, double left_width, double right_width);
   void addTopoClosure(const TopoClosure& closure);
+  void publishTopoClosureMetadata();
   void publishTopoMarkers(const cv::Mat& skeleton);
   void publishTopoVirtualObstacleCloud();
   bool isTopoVirtualOccupied(int address) const;
@@ -319,7 +320,7 @@ private:
   SynchronizerImageOdom sync_image_odom_;
 
   ros::Subscriber indep_cloud_sub_, indep_odom_sub_, extrinsic_sub_, broadcast_odom_sub_, lidar_cloud_sub_, lidar_odom_sub_, ugv_odom_sub_;
-  ros::Publisher map_pub_, map_inf_pub_, map_free_pub_, topo_marker_pub_, topo_virtual_obstacle_pub_;
+  ros::Publisher map_pub_, map_inf_pub_, map_free_pub_, topo_marker_pub_, topo_virtual_obstacle_pub_, topo_closure_pub_;
   std::vector<ros::Publisher> topo_direct_map_pubs_;
   ros::Timer pub_timer_, vis_timer_, topo_detection_timer_, topo_refresh_timer_;
 

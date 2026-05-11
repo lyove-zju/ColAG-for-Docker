@@ -22,6 +22,7 @@
   <arg name="cloud_topic"/>
   <arg name="topo_deadend_enable" default="false"/>
   <arg name="topo_deadend_scenario" default=""/>
+  <arg name="topo_detour_enable" default="false"/>
 
   <arg name="bspline_topic" value="planning/bspline"/>
   <arg name="waypoint_topic" value="guide_waypoint"/>
@@ -191,6 +192,23 @@
       <param name="rl_model_path" value="$(arg rl_model_path)" />
       <param name="rl_device" value="$(arg rl_device)" />
 
+    </node>
+  </group>
+
+  <group if="$(arg topo_detour_enable)">
+    <node pkg="guide_manager" name="topo_detour_router" type="topo_detour_router.py" output="screen">
+      <param name="drone_id" value="$(arg self_id)" />
+      <param name="ugv_num" value="$(arg ugv_num)" />
+      <param name="period" value="0.5" />
+      <param name="route_z" value="0.3" />
+      <param name="side_clearance" value="1.6" />
+      <param name="front_clearance" value="2.0" />
+      <param name="rear_clearance" value="1.2" />
+      <param name="intersection_margin" value="0.45" />
+      <param name="map_min_x" value="-20.0" />
+      <param name="map_max_x" value="20.0" />
+      <param name="map_min_y" value="-20.0" />
+      <param name="map_max_y" value="20.0" />
     </node>
   </group>
 

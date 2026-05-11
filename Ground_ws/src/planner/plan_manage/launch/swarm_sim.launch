@@ -3,6 +3,7 @@
     <arg name="uav_num" value="1"/>
     <arg name="ugv_num" default="1"/>
     <arg name="ugv_side_pair" default="false"/>
+    <arg name="topo_detour_enable" default="false"/>
 
     <arg name="localsim" value="false"/>
 
@@ -11,6 +12,7 @@
             <arg name="self_id" value="0"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="$(eval 0.0 if ugv_num == 3 else -2.0)"/>
             <arg name="init_y" value="16.0"/>
@@ -29,6 +31,7 @@
             <arg name="self_id" value="1"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="$(eval 2.0 if ugv_side_pair and ugv_num == 2 else (0.0 if ugv_num == 2 else -2.0))"/>
             <arg name="init_y" value="16.0"/>
@@ -47,6 +50,7 @@
             <arg name="self_id" value="2"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="2.0"/>
             <arg name="init_y" value="16.0"/>
@@ -65,6 +69,7 @@
             <arg name="self_id" value="3"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="-4.0"/>
             <arg name="init_y" value="16.0"/>
@@ -83,6 +88,7 @@
             <arg name="self_id" value="4"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="4.0"/>
             <arg name="init_y" value="16.0"/>
@@ -101,6 +107,7 @@
             <arg name="self_id" value="5"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="-6.0"/>
             <arg name="init_y" value="16.0"/>
@@ -119,6 +126,7 @@
             <arg name="self_id" value="6"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="6.0"/>
             <arg name="init_y" value="16.0"/>
@@ -137,6 +145,7 @@
             <arg name="self_id" value="7"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="-8.0"/>
             <arg name="init_y" value="16.0"/>
@@ -155,6 +164,7 @@
             <arg name="self_id" value="8"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="8.0"/>
             <arg name="init_y" value="16.0"/>
@@ -173,6 +183,7 @@
             <arg name="self_id" value="9"/>
             <arg name="uav_num" value="$(arg uav_num)"/>
             <arg name="ugv_num" value="$(arg ugv_num)"/>
+            <arg name="topo_detour_enable" value="$(arg topo_detour_enable)"/>
 
             <arg name="init_x" value="-10.0"/>
             <arg name="init_y" value="16.0"/>

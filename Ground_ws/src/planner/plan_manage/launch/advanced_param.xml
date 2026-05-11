@@ -31,6 +31,7 @@
 
   <arg name="flight_type"/>
   <arg name="use_distinctive_trajs"/>
+  <arg name="topo_detour_enable" default="false"/>
 
   <arg name="obj_num_set"/>
 
@@ -95,6 +96,7 @@
     <param name="fsm/emergency_time" value="0.4" type="double"/>
     <param name="fsm/realworld_experiment" value="false"/>
     <param name="fsm/fail_safe" value="true"/>
+    <param name="fsm/topo_detour_enable" value="$(arg topo_detour_enable)" />
 
     <param name="fsm/waypoint_num" value="$(arg point_num)" type="int"/>
     <param name="fsm/waypoint0_x" value="$(arg point0_x)" type="double"/>

@@ -355,6 +355,13 @@ those cells, then publishes the normal `/traj_start_trigger` automatically:
 TOPO_DEADEND=1 TOPO_AUTO_TRIGGER=1 ./run.sh 3 u_shape vrptw
 ```
 
+To also let the UAV insert UGV detour waypoints around confirmed topo closure
+walls, enable the detour router:
+
+```sh
+TOPO_DEADEND=1 TOPO_DETOUR=1 TOPO_AUTO_TRIGGER=1 ./run.sh 3 u_shape vrptw
+```
+
 To test only the original left/right UGV starts and remove the middle start,
 run two UGVs with the side-pair switch:
 

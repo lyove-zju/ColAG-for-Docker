@@ -22,6 +22,7 @@ namespace ego_planner
     nh.param("fsm/emergency_time", emergency_time_, 1.0);
     nh.param("fsm/realworld_experiment", flag_realworld_experiment_, false);
     nh.param("fsm/fail_safe", enable_fail_safe_, true);
+    nh.param("fsm/topo_detour_enable", topo_detour_enable_, false);
 
     // have_trigger_ = !flag_realworld_experiment_;
 
@@ -75,6 +76,19 @@ namespace ego_planner
     // 发布给traj_server
     bspline_pub_ = nh.advertise<traj_utils::Bspline>("planning/bspline", 10);
     data_disp_pub_ = nh.advertise<traj_utils::DataDisp>("planning/data_display", 100);
+    if (topo_detour_enable_)
+    {
+      topo_current_goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("topo_current_goal", 1, true);
+      topo_route_ack_pub_ = nh.advertise<std_msgs::Int32>("topo_route_ack", 5, true);
+      topo_detour_sub_ = nh.subscribe("topo_detour_path", 10, &EGOReplanFSM::topoDetourCallback, this, ros::TransportHints().tcpNoDelay());
+      ROS_WARN("[TopoDetour] Ground route hook enabled.");
+      if (waypoint_num_ > 0)
+      {
+        publishTopoCurrentGoal(Eigen::Vector3d(waypoints_[waypoint_num_ - 1][0],
+                                               waypoints_[waypoint_num_ - 1][1],
+                                               waypoints_[waypoint_num_ - 1][2]));
+      }
+    }
 
     if (target_type_ == TARGET_TYPE::MANUAL_TARGET)
     {
@@ -147,7 +161,16 @@ namespace ego_planner
 
     // plan first global waypoint
     wp_id_ = 0;
-    planNextWaypoint(wps_[wp_id_]);
+    publishTopoCurrentGoal(wps_.back());
+    if (topo_detour_enable_ && topo_have_pending_detour_)
+    {
+      if (applyTopoDetourPath(topo_pending_detour_))
+        publishTopoRouteAck(topo_last_route_seq_);
+    }
+    else
+    {
+      planNextWaypoint(wps_[wp_id_]);
+    }
 
     // if (success)
     // {
@@ -193,6 +216,7 @@ namespace ego_planner
     if (success)
     {
       end_pt_ = next_wp;
+      publishTopoCurrentGoal(end_pt_);
 
       /*** display ***/
       constexpr double step_size_t = 0.1;
@@ -229,11 +253,109 @@ namespace ego_planner
     }
   }
 
+  bool EGOReplanFSM::applyTopoDetourPath(const nav_msgs::Path& path)
+  {
+    if (!topo_detour_enable_ || path.poses.empty() || !have_odom_)
+      return false;
+
+    std::vector<Eigen::Vector3d> route;
+    route.reserve(path.poses.size());
+    for (const auto& pose : path.poses)
+    {
+      Eigen::Vector3d wp(pose.pose.position.x, pose.pose.position.y, odom_pos_(2));
+      route.push_back(wp);
+    }
+    if (route.empty())
+      return false;
+
+    bool success = planner_manager_->planGlobalTrajWaypoints(
+        odom_pos_, odom_vel_, Eigen::Vector3d::Zero(),
+        route, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
+    if (!success)
+    {
+      ROS_ERROR("[TopoDetour] Unable to generate detour global trajectory!");
+      return false;
+    }
+
+    wps_ = route;
+    waypoint_num_ = static_cast<int>(route.size());
+    wp_id_ = std::max(0, waypoint_num_ - 1);
+    end_pt_ = route.back();
+    end_vel_.setZero();
+    have_target_ = true;
+    have_new_target_ = true;
+    topo_have_pending_detour_ = false;
+    publishTopoCurrentGoal(end_pt_);
+
+    constexpr double step_size_t = 0.1;
+    int i_end = floor(planner_manager_->global_data_.global_duration_ / step_size_t);
+    vector<Eigen::Vector3d> global_traj(i_end);
+    for (int i = 0; i < i_end; i++)
+      global_traj[i] = planner_manager_->global_data_.global_traj_.evaluate(i * step_size_t);
+    visualization_->displayGlobalPathList(global_traj, 0.1, 0);
+    for (size_t i = 0; i < route.size(); ++i)
+      visualization_->displayGoalPoint(route[i], Eigen::Vector4d(0.2, 1.0, 1.0, 1), 0.28, static_cast<int>(i));
+
+    if (exec_state_ == WAIT_TARGET)
+      changeFSMExecState(GEN_NEW_TRAJ, "TOPO_DETOUR");
+    else if (exec_state_ == EXEC_TRAJ || exec_state_ == REPLAN_TRAJ || exec_state_ == EMERGENCY_STOP)
+      changeFSMExecState(REPLAN_TRAJ, "TOPO_DETOUR");
+
+    ROS_WARN("[TopoDetour] accepted route seq=%d waypoints=%zu final=(%.2f, %.2f, %.2f)",
+             topo_last_route_seq_, route.size(), end_pt_.x(), end_pt_.y(), end_pt_.z());
+    return true;
+  }
+
+  void EGOReplanFSM::publishTopoCurrentGoal(const Eigen::Vector3d& goal)
+  {
+    if (!topo_detour_enable_ || topo_current_goal_pub_.getTopic().empty())
+      return;
+
+    geometry_msgs::PoseStamped msg;
+    msg.header.stamp = ros::Time::now();
+    msg.header.frame_id = "world";
+    msg.pose.position.x = goal.x();
+    msg.pose.position.y = goal.y();
+    msg.pose.position.z = goal.z();
+    msg.pose.orientation.w = 1.0;
+    topo_current_goal_pub_.publish(msg);
+  }
+
+  void EGOReplanFSM::publishTopoRouteAck(int seq)
+  {
+    if (!topo_detour_enable_ || topo_route_ack_pub_.getTopic().empty())
+      return;
+
+    std_msgs::Int32 msg;
+    msg.data = seq;
+    topo_route_ack_pub_.publish(msg);
+  }
+
   void EGOReplanFSM::triggerCallback(const geometry_msgs::PoseStampedPtr &msg)
   {
     have_trigger_ = true;
     cout << "Triggered!" << endl;
     init_pt_ = odom_pos_;
+  }
+
+  void EGOReplanFSM::topoDetourCallback(const nav_msgs::PathConstPtr &msg)
+  {
+    if (!topo_detour_enable_ || msg->poses.empty())
+      return;
+
+    topo_last_route_seq_ = static_cast<int>(msg->header.seq);
+    topo_pending_detour_ = *msg;
+    topo_have_pending_detour_ = true;
+    publishTopoRouteAck(topo_last_route_seq_);
+
+    if (!have_odom_ || !have_trigger_ || !have_target_)
+    {
+      ROS_WARN("[TopoDetour] cached route seq=%d while waiting for odom/trigger/target", topo_last_route_seq_);
+      return;
+    }
+
+    applyTopoDetourPath(topo_pending_detour_);
+    publishTopoRouteAck(topo_last_route_seq_);
   }
 
   void EGOReplanFSM::realWaypointCallback(const nav_msgs::OdometryConstPtr &msg)
