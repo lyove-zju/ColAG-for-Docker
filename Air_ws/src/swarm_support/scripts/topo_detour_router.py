@@ -3,7 +3,7 @@
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import rospy
 from geometry_msgs.msg import Point, PoseStamped
@@ -83,6 +83,8 @@ class TopoDetourRouter:
         self.rear_clearance = rospy.get_param("~rear_clearance", 1.2)
         self.intersection_margin = rospy.get_param("~intersection_margin", 0.45)
         self.min_route_change = rospy.get_param("~min_route_change", 0.25)
+        self.side_lock_enable = rospy.get_param("~side_lock_enable", True)
+        self.pass_margin = rospy.get_param("~pass_margin", 0.8)
         self.map_min_x = rospy.get_param("~map_min_x", -20.0)
         self.map_max_x = rospy.get_param("~map_max_x", 20.0)
         self.map_min_y = rospy.get_param("~map_min_y", -20.0)
@@ -96,6 +98,8 @@ class TopoDetourRouter:
         self.last_routes: Dict[int, List[Vec2]] = {}
         self.last_required: Dict[int, int] = {}
         self.acks: Dict[int, int] = {}
+        self.side_locks: Dict[int, Dict[int, float]] = {ugv_id: {} for ugv_id in range(self.ugv_num)}
+        self.passed_closures: Dict[int, Set[int]] = {ugv_id: set() for ugv_id in range(self.ugv_num)}
 
         self.path_pubs = [
             rospy.Publisher(
@@ -161,6 +165,7 @@ class TopoDetourRouter:
                 )
             )
         self.closures = closures
+        self.drop_stale_closure_state({closure.closure_id for closure in closures})
 
     def odom_callback(self, msg: Odometry) -> None:
         ugv_id = self.parse_ugv_id(msg.child_frame_id)
@@ -189,7 +194,8 @@ class TopoDetourRouter:
         for ugv_id in range(self.ugv_num):
             if ugv_id not in self.odom or ugv_id not in self.goals or not self.closures:
                 continue
-            route = self.compute_route(self.odom[ugv_id], self.goals[ugv_id])
+            self.update_passed_closures(ugv_id, self.odom[ugv_id], self.goals[ugv_id])
+            route = self.compute_route(ugv_id, self.odom[ugv_id], self.goals[ugv_id])
             if route is None:
                 continue
             if self.should_publish_route(ugv_id, route):
@@ -202,8 +208,12 @@ class TopoDetourRouter:
         self.publish_required(required)
         self.publish_markers()
 
-    def compute_route(self, start: Vec2, goal: Vec2) -> Optional[List[Vec2]]:
-        blocking = self.blocking_closures(start, goal)
+    def compute_route(self, ugv_id: int, start: Vec2, goal: Vec2) -> Optional[List[Vec2]]:
+        blocking = [
+            closure
+            for closure in self.blocking_closures(start, goal)
+            if closure.closure_id not in self.passed_closures[ugv_id]
+        ]
         if not blocking:
             return None
 
@@ -211,20 +221,39 @@ class TopoDetourRouter:
         blocking.sort(key=lambda closure: dot(sub(closure.center, start), travel))
 
         candidates = []
-        for side in (-1.0, 1.0):
+        locked_side = self.locked_side_for(ugv_id, blocking)
+        sides = [locked_side] if locked_side is not None else [-1.0, 1.0]
+        for side in sides:
             route = self.build_side_route(start, goal, blocking, side, travel)
             if route is None:
                 continue
             if self.route_intersects_any([start] + route):
                 continue
-            candidates.append((self.route_score(start, route), route))
+            candidates.append((self.route_score(start, route), side, route))
+
+        if locked_side is not None and not candidates:
+            rospy.logwarn_throttle(
+                2.0,
+                "[TopoDetour] ugv_%d locked side %.0f invalid, falling back to both sides",
+                ugv_id,
+                locked_side,
+            )
+            for side in (-1.0, 1.0):
+                route = self.build_side_route(start, goal, blocking, side, travel)
+                if route is None:
+                    continue
+                if self.route_intersects_any([start] + route):
+                    continue
+                candidates.append((self.route_score(start, route), side, route))
 
         if not candidates:
             rospy.logwarn_throttle(2.0, "[TopoDetour] no valid side route around %d closure(s)", len(blocking))
             return None
 
         candidates.sort(key=lambda item: item[0])
-        return candidates[0][1]
+        _, side, route = candidates[0]
+        self.lock_sides(ugv_id, blocking, side)
+        return route
 
     def blocking_closures(self, start: Vec2, goal: Vec2) -> List[Closure]:
         return [
@@ -265,6 +294,63 @@ class TopoDetourRouter:
                 if self.segment_hits_closure(a, b, closure, self.intersection_margin):
                     return True
         return False
+
+    def locked_side_for(self, ugv_id: int, closures: Sequence[Closure]) -> Optional[float]:
+        if not self.side_lock_enable:
+            return None
+        locks = self.side_locks[ugv_id]
+        for closure in closures:
+            side = locks.get(closure.closure_id)
+            if side is not None:
+                return side
+        return None
+
+    def lock_sides(self, ugv_id: int, closures: Sequence[Closure], side: float) -> None:
+        if not self.side_lock_enable:
+            return
+        locks = self.side_locks[ugv_id]
+        for closure in closures:
+            old_side = locks.get(closure.closure_id)
+            if old_side is None:
+                rospy.logwarn(
+                    "[TopoDetour] ugv_%d locked closure %d to side %.0f",
+                    ugv_id,
+                    closure.closure_id,
+                    side,
+                )
+            locks[closure.closure_id] = side
+
+    def update_passed_closures(self, ugv_id: int, start: Vec2, goal: Vec2) -> None:
+        if not self.side_lock_enable:
+            return
+        travel = normalize(sub(goal, start), (0.0, -1.0))
+        for closure in self.closures:
+            if closure.closure_id in self.passed_closures[ugv_id]:
+                continue
+            center_ahead = dot(sub(closure.center, start), travel)
+            branch_extent = max(closure.branch_back_depth, closure.branch_front_depth, closure.thickness * 0.5)
+            wall_extent = max(closure.left_width, closure.right_width)
+            closure_extent = (
+                abs(dot(closure.branch_dir, travel)) * branch_extent
+                + abs(dot(closure.wall_dir, travel)) * wall_extent
+                + closure.thickness * 0.5
+            )
+            if center_ahead < -(closure_extent + self.pass_margin):
+                self.passed_closures[ugv_id].add(closure.closure_id)
+                self.side_locks[ugv_id].pop(closure.closure_id, None)
+                rospy.logwarn(
+                    "[TopoDetour] ugv_%d passed closure %d, releasing side lock",
+                    ugv_id,
+                    closure.closure_id,
+                )
+
+    def drop_stale_closure_state(self, active_ids: Set[int]) -> None:
+        for ugv_id in range(self.ugv_num):
+            locks = self.side_locks[ugv_id]
+            for closure_id in list(locks):
+                if closure_id not in active_ids:
+                    locks.pop(closure_id, None)
+            self.passed_closures[ugv_id].intersection_update(active_ids)
 
     def segment_hits_closure(self, a: Vec2, b: Vec2, closure: Closure, margin: float) -> bool:
         ax, ay = self.to_closure_frame(a, closure)

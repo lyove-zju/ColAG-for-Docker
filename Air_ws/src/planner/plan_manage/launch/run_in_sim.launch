@@ -205,6 +205,8 @@
       <param name="front_clearance" value="2.0" />
       <param name="rear_clearance" value="1.2" />
       <param name="intersection_margin" value="0.45" />
+      <param name="side_lock_enable" value="true" />
+      <param name="pass_margin" value="0.8" />
       <param name="map_min_x" value="-20.0" />
       <param name="map_max_x" value="20.0" />
       <param name="map_min_y" value="-20.0" />
