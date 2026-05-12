@@ -76,7 +76,7 @@
     <param name="collision/q" value="0.01"/>
     <param name="collision/r" value="0.1"/>
     <param name="collision/self_id" value="$(arg self_id)"/>
-    <param name="collision/det_range" value="2.0"/>
+    <param name="collision/det_range" value="3.0"/>
 
     <rosparam param="collision/bound_max">[10.0, 18.0, 2.0;]</rosparam>
     <rosparam param="collision/bound_min">[ -10.0, -18.0, -2.0]</rosparam>
@@ -93,7 +93,7 @@
     <param name="fsm/planning_horizon" value="$(arg planning_horizon)" type="double"/>
     <!--always set to 1.5 times grater than sensing horizen-->
     <param name="fsm/planning_horizen_time" value="3" type="double"/>
-    <param name="fsm/emergency_time" value="0.4" type="double"/>
+    <param name="fsm/emergency_time" value="0.6" type="double"/>
     <param name="fsm/realworld_experiment" value="false"/>
     <param name="fsm/fail_safe" value="true"/>
     <param name="fsm/topo_detour_enable" value="$(arg topo_detour_enable)" />
