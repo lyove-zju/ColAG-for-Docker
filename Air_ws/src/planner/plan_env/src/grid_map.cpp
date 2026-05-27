@@ -1666,7 +1666,7 @@ void GridMap::detectTopoPairClosures(const cv::Mat& state, std::vector<TopoClosu
 
 void GridMap::detectTopoScenarioClosures(const cv::Mat& state, std::vector<TopoClosure>& closures)
 {
-  if (topo_deadend_scenario_ != "u")
+  if (topo_deadend_scenario_ != "u" && topo_deadend_scenario_ != "v")
     return;
 
   cv::Mat occupied_img = cv::Mat::zeros(state.size(), CV_8UC1);
@@ -1696,33 +1696,101 @@ void GridMap::detectTopoScenarioClosures(const cv::Mat& state, std::vector<TopoC
     return topoOccupiedNear(occupied_img, px.x, px.y, radius);
   };
 
+  auto duplicate_closure = [&](const Eigen::Vector2d& center, double radius) {
+    for (const auto& existing : topo_closures_)
+    {
+      if ((existing.center_xy - center).norm() < radius)
+        return true;
+    }
+    for (const auto& existing : closures)
+    {
+      if ((existing.center_xy - center).norm() < radius)
+        return true;
+    }
+    return false;
+  };
+
+  if (topo_deadend_scenario_ == "v")
+  {
+    const double v_opening_half_x = 5.4 * shape_scale * opening_scale;
+    const double mouth_local_y = 7.5 * shape_scale * depth_scale;
+    const double tip_local_y = -7.5 * shape_scale * depth_scale;
+    const double obstacle_half = 0.45;
+    const double arm_step = 0.25;
+    const double centers_y[] = {9.5, 0.0, -9.5};
+
+    for (const double center_y : centers_y)
+    {
+      const Eigen::Vector2d mouth_center(0.0, center_y + mouth_local_y);
+      if (topoNearProtectedPoint(mouth_center, topo_protected_radius_))
+        continue;
+      if (duplicate_closure(mouth_center, 0.8))
+        continue;
+
+      const Eigen::Vector2d left_mouth(-v_opening_half_x, mouth_center.y());
+      const Eigen::Vector2d right_mouth(v_opening_half_x, mouth_center.y());
+      const Eigen::Vector2d tip(0.0, center_y + tip_local_y);
+      const double arm_length = (left_mouth - tip).norm();
+      const int arm_samples = std::max(2, static_cast<int>(std::ceil(arm_length / arm_step)));
+      int left_support = 0;
+      int right_support = 0;
+
+      for (int sample = 0; sample <= arm_samples; ++sample)
+      {
+        const double ratio = static_cast<double>(sample) / static_cast<double>(arm_samples);
+        const Eigen::Vector2d left_point = left_mouth + ratio * (tip - left_mouth);
+        const Eigen::Vector2d right_point = right_mouth + ratio * (tip - right_mouth);
+        if (observed_occupied(left_point, 3))
+          ++left_support;
+        if (observed_occupied(right_point, 3))
+          ++right_support;
+      }
+
+      const int sample_count = arm_samples + 1;
+      const int min_arm_support = std::max(5, static_cast<int>(std::ceil(0.30 * sample_count)));
+      if (left_support < min_arm_support || right_support < min_arm_support)
+      {
+        ROS_INFO_THROTTLE(3.0,
+                          "[TopoDeadEnd] v prior pending at y=%.2f support left=%d/%d right=%d/%d",
+                          mouth_center.y(), left_support, sample_count,
+                          right_support, sample_count);
+        continue;
+      }
+
+      TopoClosure closure;
+      closure.id = 0;
+      closure.center_xy = mouth_center;
+      closure.wall_dir_xy = Eigen::Vector2d(1.0, 0.0);
+      closure.branch_dir_xy = Eigen::Vector2d(0.0, 1.0);
+      const double inner_half_width = std::max(mp_.resolution_, v_opening_half_x - obstacle_half);
+      closure.left_width = inner_half_width;
+      closure.right_width = closure.left_width;
+      closure.score = 0.1 * (sample_count * 2 - left_support - right_support);
+      closure.branch_xy.clear();
+      closure.branch_xy.push_back(tip);
+      closure.branch_xy.push_back(mouth_center);
+      fillTopoClosureCells(closure, closure.left_width, closure.right_width);
+      if (closure.addresses.empty())
+        continue;
+
+      closures.push_back(closure);
+      ROS_INFO("[TopoDeadEnd] v prior confirmed center=(%.2f, %.2f) support left=%d/%d right=%d/%d cells=%zu",
+               closure.center_xy.x(), closure.center_xy.y(),
+               left_support, sample_count, right_support, sample_count,
+               closure.addresses.size());
+      if (static_cast<int>(topo_closures_.size() + closures.size()) >= topo_max_closures_)
+        return;
+    }
+    return;
+  }
+
   for (const double center_y : centers_y)
   {
     const Eigen::Vector2d mouth_center(0.0, center_y + mouth_local_y);
     if (topoNearProtectedPoint(mouth_center, topo_protected_radius_))
       continue;
 
-    bool duplicate = false;
-    for (const auto& existing : topo_closures_)
-    {
-      if ((existing.center_xy - mouth_center).norm() < 0.8)
-      {
-        duplicate = true;
-        break;
-      }
-    }
-    if (!duplicate)
-    {
-      for (const auto& existing : closures)
-      {
-        if ((existing.center_xy - mouth_center).norm() < 0.8)
-        {
-          duplicate = true;
-          break;
-        }
-      }
-    }
-    if (duplicate)
+    if (duplicate_closure(mouth_center, 0.8))
       continue;
 
     const double back_y = center_y + back_local_y;
