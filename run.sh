@@ -91,6 +91,7 @@ map_basename=$(basename "$map_name")
 case "$map_basename" in
     u_shape.pcd|u_shape_new.pcd|u_shape_new2.pcd) topo_deadend_scenario="u" ;;
     v_shape.pcd) topo_deadend_scenario="v" ;;
+    v_shape_new.pcd) topo_deadend_scenario="v_new" ;;
     deadend.pcd) topo_deadend_scenario="deadend" ;;
 esac
 
