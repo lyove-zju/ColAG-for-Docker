@@ -1,0 +1,22 @@
+experiment_dir=/work/rl_dispatch_runs/formal_ugv3/20260429_084946
+expert_jsonl=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/expert_ugv3.jsonl
+bc_checkpoint=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/dispatch_bc_ugv3.pt
+ppo_checkpoint=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/dispatch_ppo_ugv3.pt
+eval_metrics_json=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/eval_metrics.json
+bc_metrics_jsonl=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/bc_metrics.jsonl
+ppo_metrics_jsonl=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/ppo_metrics.jsonl
+training_plot_svg=/work/rl_dispatch_runs/formal_ugv3/20260429_084946/training_curves.svg
+ppo_mode=ppo_event
+eval_mode=event
+ppo_replan_period=10
+ppo_success_reward=4.0
+ppo_miss_penalty=6.0
+ppo_tardiness_weight=0.25
+ppo_ongoing_tardiness_weight=0.04
+ppo_response_time_weight=0.05
+ppo_flight_time_weight=0.01
+ppo_flight_distance_weight=0.005
+ppo_route_churn_weight=0.02
+
+run_rl_sim_command=./run.sh 3 80obs rl /work/rl_dispatch_runs/formal_ugv3/20260429_084946/dispatch_ppo_ugv3.pt cuda
+run_vrptw_sim_command=./run.sh 3 80obs vrptw

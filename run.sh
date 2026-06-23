@@ -1,8 +1,28 @@
 #!/bin/bash
 
-if ! pgrep -x "roscore" > /dev/null
-then
+source /opt/ros/noetic/setup.bash
+export ROS_MASTER_URI=${ROS_MASTER_URI:-http://localhost:11311}
+
+wait_for_ros_master() {
+    local attempt
+    for attempt in $(seq 1 40); do
+        if rosparam get /run_id >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.25
+    done
+
+    return 1
+}
+
+if ! rosnode list >/dev/null 2>&1; then
     roscore &
+fi
+
+if ! wait_for_ros_master; then
+    echo "ROS master did not become ready on $ROS_MASTER_URI" >&2
+    echo "If port 11311 is occupied by a stale process, stop it before rerunning run.sh." >&2
+    exit 1
 fi
 
 ugv_num=${1:-1}
@@ -91,7 +111,7 @@ cd "$MARSIM" && catkin_make
 cd "$UGV" && catkin_make
 cd "$UAV" && catkin_make
 
-source "$UAV/devel/setup.sh" && roslaunch ego_planner rviz.launch &
-source "$UAV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" &
-source "$UGV/devel/setup.sh" && roslaunch ego_planner swarm_sim.launch ugv_num:="$ugv_num" &
-source "$MARSIM/devel/setup.sh" && roslaunch test_interface single_drone_vlp32.launch map_name:="$map_name"
+source "$UAV/devel/setup.sh" && roslaunch --wait ego_planner rviz.launch &
+source "$UAV/devel/setup.sh" && roslaunch --wait ego_planner swarm_sim.launch ugv_num:="$ugv_num" dispatch_method:="$dispatch_method" rl_model_path:="$rl_model_path" rl_device:="$rl_device" &
+source "$UGV/devel/setup.sh" && roslaunch --wait ego_planner swarm_sim.launch ugv_num:="$ugv_num" &
+source "$MARSIM/devel/setup.sh" && roslaunch --wait test_interface single_drone_vlp32.launch map_name:="$map_name"

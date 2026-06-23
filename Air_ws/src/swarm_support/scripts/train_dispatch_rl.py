@@ -7,11 +7,19 @@ import argparse
 import json
 import math
 import os
+import random
 from typing import Dict
 
-from dispatch_dataset import DispatchDataset, collate_dispatch_batch, require_torch
+from dispatch_dataset import (
+    DispatchDataset,
+    collate_dispatch_batch,
+    permute_observation_slots,
+    random_active_slot_permutation,
+    require_torch,
+    unpermute_order_slots,
+)
 from dispatch_env import DispatchBanditEnv, EventDrivenDispatchEnv, SyntheticDispatchGenerator
-from dispatch_model import DispatchPointerPolicy, save_checkpoint
+from dispatch_model import DispatchPointerPolicy, build_policy_from_config, save_checkpoint
 from dispatch_runtime import evaluate_order_metrics
 
 
@@ -29,6 +37,11 @@ def _observation_to_batch(observation: Dict[str, object], device: str) -> Dict[s
         "pairwise_time_matrix": torch.tensor([observation["pairwise_time_matrix"]], dtype=torch.float32, device=device),
         "active_mask": torch.tensor([observation["active_mask"]], dtype=torch.bool, device=device),
     }
+
+
+def _augment_observation_slots(observation: Dict[str, object], rng: random.Random):
+    permutation = random_active_slot_permutation(observation["active_mask"], rng)
+    return permute_observation_slots(observation, permutation), permutation
 
 
 def _reset_metrics_file(path: str) -> None:
@@ -49,6 +62,21 @@ def _append_metrics(path: str, payload: Dict[str, object]) -> None:
         fh.write("\n")
 
 
+def _make_model(args: argparse.Namespace):
+    return DispatchPointerPolicy(ugv_num=args.ugv_num, hidden_dim=args.hidden_dim)
+
+
+def _load_or_make_model(args: argparse.Namespace, torch_module):
+    if not args.init_checkpoint:
+        return _make_model(args)
+    payload = torch_module.load(args.init_checkpoint, map_location=args.device)
+    config = payload.get("config", {})
+    legacy_checkpoint = "use_ugv_id_feature" not in config
+    model = build_policy_from_config(config, legacy_checkpoint=legacy_checkpoint)
+    model.load_state_dict(payload["state_dict"], strict=not legacy_checkpoint)
+    return model
+
+
 def train_bc(args: argparse.Namespace) -> int:
     require_torch()
     import torch
@@ -56,7 +84,7 @@ def train_bc(args: argparse.Namespace) -> int:
 
     dataset = DispatchDataset(args.dataset)
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_dispatch_batch)
-    model = DispatchPointerPolicy(ugv_num=args.ugv_num, hidden_dim=args.hidden_dim)
+    model = _make_model(args)
     model.to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     _reset_metrics_file(args.metrics_jsonl)
@@ -100,10 +128,7 @@ def train_ppo(args: argparse.Namespace) -> int:
     require_torch()
     import torch
 
-    model = DispatchPointerPolicy(ugv_num=args.ugv_num, hidden_dim=args.hidden_dim)
-    if args.init_checkpoint:
-        payload = torch.load(args.init_checkpoint, map_location=args.device)
-        model.load_state_dict(payload["state_dict"])
+    model = _load_or_make_model(args, torch)
     model.to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     _reset_metrics_file(args.metrics_jsonl)
@@ -118,18 +143,21 @@ def train_ppo(args: argparse.Namespace) -> int:
             a_max=args.a_max,
         )
     )
+    slot_rng = random.Random(args.seed + 1000003)
 
     for update_idx in range(args.updates):
         rollout = []
         for _ in range(args.batch_size):
             observation = env.reset()
-            batch = _observation_to_batch(observation, args.device)
+            policy_observation, permutation = _augment_observation_slots(observation, slot_rng)
+            batch = _observation_to_batch(policy_observation, args.device)
             output = model(batch, greedy=False)
-            active_count = int(observation["active_count"])
+            active_count = int(policy_observation["active_count"])
             actions = output["actions"][0, :active_count]
             log_prob = output["log_probs"][0, :active_count].sum()
             value = output["values"][0]
-            metrics = evaluate_order_metrics(actions.detach().cpu().tolist(), observation)
+            env_actions = unpermute_order_slots(actions.detach().cpu().tolist(), permutation)
+            metrics = evaluate_order_metrics(env_actions, observation)
             reward = torch.tensor(metrics.reward, dtype=torch.float32, device=args.device)
             rollout.append(
                 {
@@ -207,10 +235,7 @@ def train_ppo_event(args: argparse.Namespace) -> int:
     require_torch()
     import torch
 
-    model = DispatchPointerPolicy(ugv_num=args.ugv_num, hidden_dim=args.hidden_dim)
-    if args.init_checkpoint:
-        payload = torch.load(args.init_checkpoint, map_location=args.device)
-        model.load_state_dict(payload["state_dict"])
+    model = _load_or_make_model(args, torch)
     model.to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     _reset_metrics_file(args.metrics_jsonl)
@@ -239,6 +264,7 @@ def train_ppo_event(args: argparse.Namespace) -> int:
         flight_distance_weight=args.flight_distance_weight,
         route_churn_weight=args.route_churn_weight,
     )
+    slot_rng = random.Random(args.seed + 2000003)
 
     for update_idx in range(args.updates):
         rollout = []
@@ -252,13 +278,15 @@ def train_ppo_event(args: argparse.Namespace) -> int:
             done = False
             final_info = {}
             while not done and len(episode_items) < args.max_decisions_per_episode:
-                batch = _observation_to_batch(observation, args.device)
+                policy_observation, permutation = _augment_observation_slots(observation, slot_rng)
+                batch = _observation_to_batch(policy_observation, args.device)
                 output = model(batch, greedy=False)
-                active_count = int(observation["active_count"])
+                active_count = int(policy_observation["active_count"])
                 actions = output["actions"][0, :active_count]
                 log_prob = output["log_probs"][0, :active_count].sum()
                 value = output["values"][0]
-                next_observation, reward_value, done, final_info = env.step(actions.detach().cpu().tolist())
+                env_actions = unpermute_order_slots(actions.detach().cpu().tolist(), permutation)
+                next_observation, reward_value, done, final_info = env.step(env_actions)
                 reward = torch.tensor(float(reward_value), dtype=torch.float32, device=args.device)
                 episode_items.append(
                     {
